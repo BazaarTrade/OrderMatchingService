@@ -1,4 +1,4 @@
-package engine
+package exchange
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Moha192/OrderMatchingService/internal/repository"
 	"github.com/shopspring/decimal"
 )
 
@@ -36,6 +37,8 @@ func NewOrder(userID int, isBid bool, size string) *Order {
 }
 
 type OrderBook struct {
+	db *repository.Database
+
 	askMutex sync.RWMutex
 	bidMutex sync.RWMutex
 
@@ -46,8 +49,9 @@ type OrderBook struct {
 	AskLimits map[string]*Limit
 }
 
-func NewOrderBook() *OrderBook {
+func NewOrderBook(db *repository.Database) *OrderBook {
 	return &OrderBook{
+		db:            db,
 		BestBidLimits: make([]*Limit, 0),
 		BestAskLimits: make([]*Limit, 0),
 		BidLimits:     make(map[string]*Limit),
@@ -252,15 +256,5 @@ func (ob *OrderBook) removeEmptyLimits(emptyLimits []string, isBid bool) {
 		}
 		ob.BestBidLimits = ob.BestBidLimits[lenLimits+1:]
 
-	}
-}
-
-type Exchange struct {
-	OrderBooks map[string]*OrderBook
-}
-
-func Newexchange() *Exchange {
-	return &Exchange{
-		OrderBooks: make(map[string]*OrderBook),
 	}
 }
