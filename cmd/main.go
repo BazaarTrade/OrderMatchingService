@@ -7,7 +7,7 @@ func main() {
 //TODO:
 //realisation of cencel order ✓
 
-//realisation of database
+//realisation of database ✓
 
 //realisation of gRPC server
 

@@ -1,6 +1,6 @@
 package service
 
-type Service interface {
+type OrderService interface {
 	PlaceLimitOrder()
 	CancelLimitOrder()
 	PlaceMarketOrder()

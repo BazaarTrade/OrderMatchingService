@@ -11,6 +11,29 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type OrderBook struct {
+	db *repository.Database
+
+	askMutex sync.RWMutex
+	bidMutex sync.RWMutex
+
+	BestBidLimits []*Limit
+	BestAskLimits []*Limit
+
+	BidLimits map[string]*Limit
+	AskLimits map[string]*Limit
+}
+
+func NewOrderBook(db *repository.Database) *OrderBook {
+	return &OrderBook{
+		db:            db,
+		BestBidLimits: make([]*Limit, 0),
+		BestAskLimits: make([]*Limit, 0),
+		BidLimits:     make(map[string]*Limit),
+		AskLimits:     make(map[string]*Limit),
+	}
+}
+
 type Order struct {
 	ID        int
 	UserID    int
@@ -33,29 +56,6 @@ func NewOrder(userID int, isBid bool, size string) *Order {
 		IsBid:     isBid,
 		Size:      sizeDecimal,
 		Timestamp: time.Now(),
-	}
-}
-
-type OrderBook struct {
-	db *repository.Database
-
-	askMutex sync.RWMutex
-	bidMutex sync.RWMutex
-
-	BestBidLimits []*Limit
-	BestAskLimits []*Limit
-
-	BidLimits map[string]*Limit
-	AskLimits map[string]*Limit
-}
-
-func NewOrderBook(db *repository.Database) *OrderBook {
-	return &OrderBook{
-		db:            db,
-		BestBidLimits: make([]*Limit, 0),
-		BestAskLimits: make([]*Limit, 0),
-		BidLimits:     make(map[string]*Limit),
-		AskLimits:     make(map[string]*Limit),
 	}
 }
 

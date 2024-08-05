@@ -1,13 +1,14 @@
 package models
 
 type Order struct {
-	ID        int
-	UserID    int
-	Pair      string
-	OrderTypr string
-	Price     string
-	Qty       string
-	IsBid     bool
+	ID           int
+	UserID       int
+	CurrencyPair string
+	Price        string
+	Qty          string
+	OrderType    string
+	IsBid        bool
+	IsFilled     bool
 }
 
 type Match struct {
