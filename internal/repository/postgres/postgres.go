@@ -6,17 +6,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Postres struct {
+type Postgres struct {
 	DB *pgxpool.Pool
 }
 
-func NewPostgres(databaseConn string) (*Postres, error) {
+func NewPostgres(databaseConn string) (*Postgres, error) {
 	conn, err := pgxpool.New(context.Background(), databaseConn)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Postres{
+	return &Postgres{
 		DB: conn,
 	}, nil
 }

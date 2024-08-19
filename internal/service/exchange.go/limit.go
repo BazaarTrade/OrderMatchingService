@@ -20,8 +20,9 @@ func NewLimit(price decimal.Decimal) *Limit {
 	}
 }
 
-func (l *Limit) matchOrders(order *Order) bool {
+func (l *Limit) matchOrders(order *Order, matches *[]Match) bool {
 	var countFilledOrders int
+
 	defer func() {
 		if countFilledOrders > 0 {
 			l.removeEmptyOrders(countFilledOrders)
@@ -29,24 +30,41 @@ func (l *Limit) matchOrders(order *Order) bool {
 	}()
 
 	for _, bestOrder := range l.Orders {
-		switch order.Size.Cmp(bestOrder.Size) {
-		case 1: // order.Size > bestOrder.Size
-			order.Size = order.Size.Sub(bestOrder.Size)
-			l.TotalSize = l.TotalSize.Sub(bestOrder.Size)
-			bestOrder.Size = decimal.NewFromFloat(0)
+		var match = Match{
+			Price:          l.Price,
+			CounterOrderID: bestOrder.ID,
+		}
+
+		switch order.Qty.Cmp(bestOrder.Qty) {
+		case 1: // order.Qty > bestOrder.Qty
+			order.Qty = order.Qty.Sub(bestOrder.Qty)
+			order.SizeFilled = order.SizeFilled.Add(bestOrder.Qty)
+			l.TotalSize = l.TotalSize.Sub(bestOrder.Qty)
+			match.Qty = bestOrder.Qty
+			match.CounterOrderStatus = "Filling"
+			bestOrder.Qty = decimal.NewFromFloat(0)
 			countFilledOrders++
-		case -1: // order.Size < bestOrder.Size
-			bestOrder.Size = bestOrder.Size.Sub(order.Size)
-			l.TotalSize = l.TotalSize.Sub(order.Size)
-			order.Size = decimal.NewFromFloat(0)
-		case 0: // order.Size == bestOrder.Size
-			l.TotalSize = l.TotalSize.Sub(order.Size)
-			order.Size = decimal.NewFromFloat(0)
-			bestOrder.Size = decimal.NewFromFloat(0)
+		case -1: // order.Qty < bestOrder.Qty
+			bestOrder.Qty = bestOrder.Qty.Sub(order.Qty)
+			order.SizeFilled = order.SizeFilled.Add(order.Qty)
+			l.TotalSize = l.TotalSize.Sub(order.Qty)
+			match.Qty = order.Qty
+			match.CounterOrderStatus = "Filled"
+			order.Qty = decimal.NewFromFloat(0)
+		case 0: // order.Qty == bestOrder.Qty
+			order.SizeFilled = order.SizeFilled.Add(order.Qty)
+			l.TotalSize = l.TotalSize.Sub(order.Qty)
+			match.Qty = order.Qty
+			match.CounterOrderStatus = "Filled"
+			order.Qty = decimal.NewFromFloat(0)
+			bestOrder.Qty = decimal.NewFromFloat(0)
 			countFilledOrders++
 		}
 
-		if order.Size.IsZero() {
+		match.CounterOrderSizeFilled = bestOrder.SizeFilled
+		*matches = append(*matches, match)
+
+		if order.Qty.IsZero() {
 			slog.Info("Order filled:", "price", l.Price)
 			return true
 		}
@@ -54,10 +72,10 @@ func (l *Limit) matchOrders(order *Order) bool {
 	return false
 }
 
-func (l *Limit) removeOrder(orderID int) bool {
+func (l *Limit) removeOrder(orderID int64) bool {
 	for i, order := range l.Orders {
 		if orderID == order.ID {
-			l.TotalSize = l.TotalSize.Sub(order.Size)
+			l.TotalSize = l.TotalSize.Sub(order.Qty)
 			l.Orders = append(l.Orders[:i], l.Orders[i+1:]...)
 			return true
 		}

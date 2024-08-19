@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package pb;
+
+option go_package = "/pb";
+
+import "google/protobuf/timestamp.proto";
+
+service matchingEngine {
+    rpc PlaceLimitOrder(PlaceOrderReq) returns (PlaceOrderRes) {}
+    rpc PalceMarketOrder(PlaceOrderReq) returns (PlaceOrderRes) {}
+    rpc CancelOrder(CancelOrderReq) returns (CancelOrderRes) {}
+
+    rpc GetCurrentOrders(GetCurrentOrdersReq) returns (GetCurrentOrdersRes) {}
+    rpc GetOrderHistory(GetOrderHistoryReq) returns (GetOrderHistoryRes) {}
+
+    rpc AddOrderBook(AddOrderBookReq) returns (AddOrderBookRes) {}
+    rpc DeleteOrderBook(DeleteOrderBookReq) returns (DeleteOrderBookRes) {}
+}
+
+message PlaceOrderReq {
+    int64 userID = 1;
+    bool isBid = 2;
+    string symbol = 3;
+    string qty = 4;
+    string price = 5;
+    string type = 6;
+}
+
+message PlaceOrderRes {
+    repeated order updatedOrders = 1;
+}
+
+message match {
+    int64 counterOrderID = 1;
+    int64 counterUserID = 2;
+    string qty = 3;
+    string price = 4;
+}
+
+message CancelOrderReq {
+    int64 ID = 1;
+}
+
+message CancelOrderRes {
+    
+}
+
+message GetOrderHistoryReq {
+    int64 userID = 1;
+}
+
+message GetOrderHistoryRes {
+    repeated order orders = 1;
+}
+
+message GetCurrentOrdersReq {
+    int64 userID = 1;
+}
+
+message GetCurrentOrdersRes {
+    repeated order orders = 1;
+}
+
+message order {
+    int64 ID = 1;
+    int64 userID = 2;
+    bool isBid = 3;
+    string symbol = 4;
+    string price = 5;
+    string qty = 6;
+    string sizeFilled = 7;
+    string status = 8;
+    string type = 9;
+    google.protobuf.Timestamp time = 10;
+}
+
+message AddOrderBookReq {
+    string Symbol = 1;
+}
+
+message AddOrderBookRes {
+
+}
+
+message DeleteOrderBookReq {
+    string symbol = 1;
+}
+
+message DeleteOrderBookRes {
+
+}
