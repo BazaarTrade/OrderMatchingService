@@ -173,7 +173,7 @@ func (ob *OrderBook) fillOrder(order *Order) *[]Match {
 		}()
 
 		for _, bestAskLimit := range ob.BestAskLimits {
-			if order.Type == "Limit" && order.Price.Cmp(bestAskLimit.Price) < 0 {
+			if order.Type == "limit" && order.Price.Cmp(bestAskLimit.Price) < 0 {
 				return matches
 			}
 
@@ -199,7 +199,7 @@ func (ob *OrderBook) fillOrder(order *Order) *[]Match {
 		}()
 
 		for _, bestBidLimit := range ob.BestBidLimits {
-			if order.Type == "Limit" && order.Price.Cmp(bestBidLimit.Price) > 0 {
+			if order.Type == "limit" && order.Price.Cmp(bestBidLimit.Price) > 0 {
 				return matches
 			}
 

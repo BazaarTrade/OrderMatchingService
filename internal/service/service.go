@@ -9,5 +9,8 @@ type Exchanger interface {
 	DeleteOrderBook(symbol string) error
 
 	PlaceOrder(order models.PlaceOrderReq) ([]models.Order, error)
-	CancelOrder(orderID int64) error
+	CancelOrder(orderID int64) (models.Order, error)
+
+	GetOrders(userID int64) ([]models.Order, error)
+	GetCurrentOrders(userID int64) ([]models.Order, error)
 }

@@ -67,36 +67,30 @@ func (e *Exchange) PlaceOrder(input models.PlaceOrderReq) ([]models.Order, error
 	)
 
 	switch order.Type {
-	case "Limit":
+	case "limit":
 		matches, err = ob.placeLimitOrder(input.Price, order)
-	case "Market":
+	case "market":
 		matches, err = ob.placeMarketOrder(order)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	var status string
-	if order.Qty.IsZero() {
-		status = "Filled"
-	} else {
-		status = "Filling"
-	}
 	var addMatchesReq = repository.AddMatchesReq{
 		OrderID:         order.ID,
-		OrderStatus:     status,
 		OrderSizeFilled: order.SizeFilled.String(),
 	}
 
-	for _, match := range *matches {
-		var newMatch = repository.Match{
-			Qty:                    match.Qty.String(),
-			Price:                  match.Price.String(),
-			CounterOrderID:         match.CounterOrderID,
-			CounterOrderStatus:     match.CounterOrderStatus,
-			CounterOrderSizeFilled: match.CounterOrderSizeFilled.String(),
+	if matches != nil {
+		for _, match := range *matches {
+			var newMatch = repository.Match{
+				Qty:                    match.Qty.String(),
+				Price:                  match.Price.String(),
+				CounterOrderID:         match.CounterOrderID,
+				CounterOrderSizeFilled: match.CounterOrderSizeFilled.String(),
+			}
+			addMatchesReq.Matches = append(addMatchesReq.Matches, newMatch)
 		}
-		addMatchesReq.Matches = append(addMatchesReq.Matches, newMatch)
 	}
 
 	updatedOrders, err := e.db.AddMatches(addMatchesReq)
@@ -107,28 +101,33 @@ func (e *Exchange) PlaceOrder(input models.PlaceOrderReq) ([]models.Order, error
 	return updatedOrders, nil
 }
 
-func (e *Exchange) CancelOrder(orderID int64) error {
+func (e *Exchange) CancelOrder(orderID int64) (models.Order, error) {
 	order, err := e.db.GetOrderByOrderID(orderID)
 	if err != nil {
-		return err
+		return models.Order{}, err
 	}
 
 	ob, ok := e.OrderBooks[order.Symbol]
 	if !ok {
-		return errors.New("order book not found")
+		return models.Order{}, errors.New("order book not found")
 	}
 
 	err = ob.cancelLimitOrder(orderID, order.Price, order.IsBid)
 	if err != nil {
-		return err
+		return models.Order{}, err
 	}
-	return nil
+
+	order, err = e.db.SetStatusToCancel(orderID)
+	if err != nil {
+		return models.Order{}, err
+	}
+	return order, nil
 }
 
-func (e *Exchange) GetCurrentOrders(userID int64) {
-
+func (e *Exchange) GetCurrentOrders(userID int64) ([]models.Order, error) {
+	return e.db.GetNotFilledOrdersByUser(userID)
 }
 
-func (e *Exchange) GetOrders(userID int64) {
-
+func (e *Exchange) GetOrders(userID int64) ([]models.Order, error) {
+	return e.db.GetOrdersByUser(userID)
 }

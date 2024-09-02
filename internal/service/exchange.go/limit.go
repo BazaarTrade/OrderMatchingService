@@ -37,25 +37,25 @@ func (l *Limit) matchOrders(order *Order, matches *[]Match) bool {
 
 		switch order.Qty.Cmp(bestOrder.Qty) {
 		case 1: // order.Qty > bestOrder.Qty
+			bestOrder.SizeFilled = bestOrder.SizeFilled.Add(bestOrder.Qty)
 			order.Qty = order.Qty.Sub(bestOrder.Qty)
 			order.SizeFilled = order.SizeFilled.Add(bestOrder.Qty)
 			l.TotalSize = l.TotalSize.Sub(bestOrder.Qty)
 			match.Qty = bestOrder.Qty
-			match.CounterOrderStatus = "Filling"
 			bestOrder.Qty = decimal.NewFromFloat(0)
 			countFilledOrders++
 		case -1: // order.Qty < bestOrder.Qty
+			bestOrder.SizeFilled = bestOrder.SizeFilled.Add(order.Qty)
 			bestOrder.Qty = bestOrder.Qty.Sub(order.Qty)
 			order.SizeFilled = order.SizeFilled.Add(order.Qty)
 			l.TotalSize = l.TotalSize.Sub(order.Qty)
 			match.Qty = order.Qty
-			match.CounterOrderStatus = "Filled"
 			order.Qty = decimal.NewFromFloat(0)
 		case 0: // order.Qty == bestOrder.Qty
+			bestOrder.SizeFilled = bestOrder.SizeFilled.Add(order.Qty)
 			order.SizeFilled = order.SizeFilled.Add(order.Qty)
 			l.TotalSize = l.TotalSize.Sub(order.Qty)
 			match.Qty = order.Qty
-			match.CounterOrderStatus = "Filled"
 			order.Qty = decimal.NewFromFloat(0)
 			bestOrder.Qty = decimal.NewFromFloat(0)
 			countFilledOrders++

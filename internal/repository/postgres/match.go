@@ -8,21 +8,19 @@ import (
 )
 
 func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order, error) {
-	// Транзакция для обеспечения целостности данных
 	tx, err := p.DB.Begin(context.Background())
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(context.Background())
 
-	// Обновление ордера, который был матчирован
 	var updatedOrder models.Order
 	err = tx.QueryRow(context.Background(), `
 		UPDATE orders
-		SET size_filled = $1, status = $2
-		WHERE id = $3
-		RETURNING id, user_id, is_bid, symbol, price, qty, size_filled, status, order_type, created_at, closed_at
-	`, matches.OrderSizeFilled, matches.OrderStatus, matches.OrderID).Scan(
+		SET size_filled = $1
+		WHERE id = $2
+		RETURNING id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at
+	`, matches.OrderSizeFilled, matches.OrderID).Scan(
 		&updatedOrder.ID,
 		&updatedOrder.UserID,
 		&updatedOrder.IsBid,
@@ -39,20 +37,17 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 		return nil, err
 	}
 
-	// Список для хранения обновленных ордеров
 	var updatedOrders []models.Order
 	updatedOrders = append(updatedOrders, updatedOrder)
 
-	// Обработка каждого матча
 	for _, match := range matches.Matches {
-		// Обновление контр-ордера
 		var counterOrder models.Order
 		err = tx.QueryRow(context.Background(), `
 			UPDATE orders
-			SET size_filled = $1, status = $2
-			WHERE id = $3
-			RETURNING id, user_id, is_bid, symbol, price, qty, size_filled, status, order_type, created_at, closed_at
-		`, match.CounterOrderSizeFilled, match.CounterOrderStatus, match.CounterOrderID).Scan(
+			SET size_filled = $1
+			WHERE id = $2
+			RETURNING id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at
+		`, match.CounterOrderSizeFilled, match.CounterOrderID).Scan(
 			&counterOrder.ID,
 			&counterOrder.UserID,
 			&counterOrder.IsBid,
@@ -70,7 +65,6 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 		}
 		updatedOrders = append(updatedOrders, counterOrder)
 
-		// Сохранение матча в таблице matches
 		_, err = tx.Exec(context.Background(), `
 			INSERT INTO matches (order_id, order_id_counter, qty, price)
 			VALUES ($1, $2, $3, $4)
@@ -80,7 +74,6 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 		}
 	}
 
-	// Подтверждение транзакции
 	err = tx.Commit(context.Background())
 	if err != nil {
 		return nil, err

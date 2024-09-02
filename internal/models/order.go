@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql"
 	"time"
 )
 
@@ -15,7 +16,7 @@ type Order struct {
 	Status     string
 	Type       string
 	CreatedAt  time.Time
-	ClosedAt   time.Time
+	ClosedAt   sql.NullTime
 }
 
 type Match struct {

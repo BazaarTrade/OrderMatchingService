@@ -5,17 +5,17 @@ package pb;
 option go_package = "/pb";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 
 service matchingEngine {
-    rpc PlaceLimitOrder(PlaceOrderReq) returns (PlaceOrderRes) {}
-    rpc PalceMarketOrder(PlaceOrderReq) returns (PlaceOrderRes) {}
-    rpc CancelOrder(CancelOrderReq) returns (CancelOrderRes) {}
+    rpc PlaceOrder(PlaceOrderReq) returns (OrdersRes) {}
+    rpc CancelOrder(CancelOrderReq) returns (order) {}
 
-    rpc GetCurrentOrders(GetCurrentOrdersReq) returns (GetCurrentOrdersRes) {}
-    rpc GetOrderHistory(GetOrderHistoryReq) returns (GetOrderHistoryRes) {}
+    rpc GetCurrentOrders(UserIDReq) returns (OrdersRes) {}
+    rpc GetOrders(UserIDReq) returns (OrdersRes) {}
 
-    rpc AddOrderBook(AddOrderBookReq) returns (AddOrderBookRes) {}
-    rpc DeleteOrderBook(DeleteOrderBookReq) returns (DeleteOrderBookRes) {}
+    rpc CreateOrderBook(OrderBookSymbol) returns (google.protobuf.Empty) {}
+    rpc DeleteOrderBook(OrderBookSymbol) returns (google.protobuf.Empty) {}
 }
 
 message PlaceOrderReq {
@@ -27,40 +27,22 @@ message PlaceOrderReq {
     string type = 6;
 }
 
-message PlaceOrderRes {
-    repeated order updatedOrders = 1;
-}
-
-message match {
-    int64 counterOrderID = 1;
-    int64 counterUserID = 2;
-    string qty = 3;
-    string price = 4;
+message OrdersRes {
+    repeated order Orders = 1;
 }
 
 message CancelOrderReq {
     int64 ID = 1;
 }
 
-message CancelOrderRes {
-    
-}
-
-message GetOrderHistoryReq {
+message UserIDReq {
     int64 userID = 1;
 }
 
-message GetOrderHistoryRes {
-    repeated order orders = 1;
+message OrderBookSymbol {
+    string symbol = 1;
 }
 
-message GetCurrentOrdersReq {
-    int64 userID = 1;
-}
-
-message GetCurrentOrdersRes {
-    repeated order orders = 1;
-}
 
 message order {
     int64 ID = 1;
@@ -72,21 +54,13 @@ message order {
     string sizeFilled = 7;
     string status = 8;
     string type = 9;
-    google.protobuf.Timestamp time = 10;
+    google.protobuf.Timestamp created_at = 10;
+    google.protobuf.Timestamp closed_at = 11;
 }
 
-message AddOrderBookReq {
-    string Symbol = 1;
-}
-
-message AddOrderBookRes {
-
-}
-
-message DeleteOrderBookReq {
-    string symbol = 1;
-}
-
-message DeleteOrderBookRes {
-
+message match {
+    int64 counterOrderID = 1;
+    int64 counterUserID = 2;
+    string qty = 3;
+    string price = 4;
 }
