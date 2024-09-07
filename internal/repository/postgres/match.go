@@ -8,8 +8,9 @@ import (
 )
 
 func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order, error) {
-	tx, err := p.DB.Begin(context.Background())
+	tx, err := p.db.Begin(context.Background())
 	if err != nil {
+		p.logger.Error("Error creating transaction", "error", err)
 		return nil, err
 	}
 	defer tx.Rollback(context.Background())
@@ -34,6 +35,7 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 		&updatedOrder.ClosedAt,
 	)
 	if err != nil {
+		p.logger.Error("Error updating size_filled", "error", err)
 		return nil, err
 	}
 
@@ -61,6 +63,7 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 			&counterOrder.ClosedAt,
 		)
 		if err != nil {
+			p.logger.Error("Error updating size_filled", "error", err)
 			return nil, err
 		}
 		updatedOrders = append(updatedOrders, counterOrder)
@@ -70,12 +73,14 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 			VALUES ($1, $2, $3, $4)
 		`, matches.OrderID, match.CounterOrderID, match.Qty, match.Price)
 		if err != nil {
+			p.logger.Error("Error inserting matches", "error", err)
 			return nil, err
 		}
 	}
 
 	err = tx.Commit(context.Background())
 	if err != nil {
+		p.logger.Error("Error commiting transaction", "error", err)
 		return nil, err
 	}
 
@@ -83,10 +88,11 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 }
 
 func (p *Postgres) GetMatches(orderID int64) ([]models.Match, error) {
-	rows, err := p.DB.Query(context.Background(), `
+	rows, err := p.db.Query(context.Background(), `
 	SELECT FROM mathces(qty, price) WHERE order_id = $1
 	`, orderID)
 	if err != nil {
+		p.logger.Error("Error selecting matches", "error", err)
 		return nil, err
 	}
 
@@ -95,6 +101,7 @@ func (p *Postgres) GetMatches(orderID int64) ([]models.Match, error) {
 		var match models.Match
 		err := rows.Scan(&match.Qty, &match.Price)
 		if err != nil {
+			p.logger.Error("Error scanning matches", "error", err)
 			return nil, err
 		}
 		mathces = append(mathces, match)

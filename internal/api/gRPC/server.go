@@ -3,23 +3,35 @@ package gRPC
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net"
 
 	"github.com/Moha192/OrderMatchingService/internal/models"
 	pb "github.com/Moha192/OrderMatchingService/internal/proto"
 	"github.com/Moha192/OrderMatchingService/internal/service"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type server struct {
-	pb.UnimplementedMatchingEngineServer
+type Server struct {
 	service service.Exchanger
+	logger  *slog.Logger
+
+	pb.UnimplementedMatchingEngineServer
 }
 
-func StartGRPCServer(service service.Exchanger) error {
+func NewServer(service service.Exchanger, logger *slog.Logger) *Server {
+	return &Server{
+		service: service,
+		logger:  logger,
+	}
+}
+
+func (s *Server) StartGRPCServer() error {
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
@@ -27,10 +39,6 @@ func StartGRPCServer(service service.Exchanger) error {
 	}
 
 	grpcServer := grpc.NewServer()
-
-	s := &server{
-		service: service,
-	}
 
 	pb.RegisterMatchingEngineServer(grpcServer, s)
 	reflection.Register(grpcServer)
@@ -44,7 +52,9 @@ func StartGRPCServer(service service.Exchanger) error {
 	return nil
 }
 
-func (s *server) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq) (*pb.OrdersRes, error) {
+func (s *Server) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq) (*pb.OrdersRes, error) {
+	s.logger.Info("PlaceOrder request", "user_id", req.UserID)
+
 	var placeOrder = models.PlaceOrderReq{
 		UserID: req.UserID,
 		IsBid:  req.IsBid,
@@ -56,7 +66,10 @@ func (s *server) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq) (*pb.Ord
 
 	modifiedOrders, err := s.service.PlaceOrder(placeOrder)
 	if err != nil {
-		return nil, err
+		if err.Error() == "Order book not found" {
+			return nil, status.Errorf(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "Failed to palce order: %v", err)
 	}
 
 	var res pb.OrdersRes
@@ -80,11 +93,16 @@ func (s *server) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq) (*pb.Ord
 	return &res, nil
 }
 
-func (s *server) CancelOrder(ctx context.Context, req *pb.CancelOrderReq) (*pb.Order, error) {
+func (s *Server) CancelOrder(ctx context.Context, req *pb.CancelOrderReq) (*pb.Order, error) {
+	s.logger.Info("CancelOrder request", "order_id", req.ID)
+
 	orderID := req.ID
 	o, err := s.service.CancelOrder(orderID)
 	if err != nil {
-		return &pb.Order{}, err
+		if err.Error() == "Order book not found" {
+			return nil, status.Errorf(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "Failed to cancel order: %v", err)
 	}
 
 	var order = pb.Order{
@@ -103,11 +121,12 @@ func (s *server) CancelOrder(ctx context.Context, req *pb.CancelOrderReq) (*pb.O
 	return &order, nil
 }
 
-func (s *server) GetCurrentOrders(ctx context.Context, req *pb.UserIDReq) (*pb.OrdersRes, error) {
-	userID := req.UserID
-	orders, err := s.service.GetCurrentOrders(userID)
+func (s *Server) GetCurrentOrders(ctx context.Context, req *pb.UserIDReq) (*pb.OrdersRes, error) {
+	s.logger.Info("GetCurrentOrders request", "user_id", req.UserID)
+
+	orders, err := s.service.GetCurrentOrders(req.UserID)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "Failed to get current orders: %v", err)
 	}
 
 	var res pb.OrdersRes
@@ -128,11 +147,12 @@ func (s *server) GetCurrentOrders(ctx context.Context, req *pb.UserIDReq) (*pb.O
 	return &res, nil
 }
 
-func (s *server) GetOrders(ctx context.Context, req *pb.UserIDReq) (*pb.OrdersRes, error) {
-	userID := req.UserID
-	orders, err := s.service.GetOrders(userID)
+func (s *Server) GetOrders(ctx context.Context, req *pb.UserIDReq) (*pb.OrdersRes, error) {
+	s.logger.Info("GetOrders request", "user_id", req.UserID)
+
+	orders, err := s.service.GetOrders(req.UserID)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "Failed to get orders: %v", err)
 	}
 
 	var res pb.OrdersRes
@@ -153,18 +173,22 @@ func (s *server) GetOrders(ctx context.Context, req *pb.UserIDReq) (*pb.OrdersRe
 	return &res, nil
 }
 
-func (s *server) CreateOrderBook(ctx context.Context, req *pb.OrderBookSymbol) (*emptypb.Empty, error) {
+func (s *Server) CreateOrderBook(ctx context.Context, req *pb.OrderBookSymbol) (*emptypb.Empty, error) {
+	s.logger.Info("CreateOrderBook request", "symbol", req.Symbol)
+
 	err := s.service.AddOrderBook(req.Symbol)
 	if err != nil {
-		return &emptypb.Empty{}, err
+		return nil, status.Errorf(codes.Internal, "Failed to create orderbook: %v", err)
 	}
 	return &emptypb.Empty{}, nil
 }
 
-func (s *server) DeleteOrderBook(ctx context.Context, req *pb.OrderBookSymbol) (*emptypb.Empty, error) {
+func (s *Server) DeleteOrderBook(ctx context.Context, req *pb.OrderBookSymbol) (*emptypb.Empty, error) {
+	s.logger.Info("DeleteOrderBook request", "symbol", req.Symbol)
+
 	err := s.service.DeleteOrderBook(req.Symbol)
 	if err != nil {
-		return &emptypb.Empty{}, err
+		return nil, status.Errorf(codes.Internal, "Failed to delete orderbook: %v", err)
 	}
 	return &emptypb.Empty{}, nil
 }

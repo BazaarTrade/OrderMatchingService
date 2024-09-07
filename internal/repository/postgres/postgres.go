@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -11,10 +12,11 @@ import (
 )
 
 type Postgres struct {
-	DB *pgxpool.Pool
+	db     *pgxpool.Pool
+	logger *slog.Logger
 }
 
-func NewPostgres(databaseConn string) (*Postgres, error) {
+func NewPostgres(databaseConn string, logger *slog.Logger) (*Postgres, error) {
 	conn, err := pgxpool.New(context.Background(), databaseConn)
 	if err != nil {
 		return nil, err
@@ -33,6 +35,7 @@ func NewPostgres(databaseConn string) (*Postgres, error) {
 	}
 
 	return &Postgres{
-		DB: conn,
+		db:     conn,
+		logger: logger,
 	}, nil
 }

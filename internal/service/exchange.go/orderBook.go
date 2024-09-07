@@ -13,57 +13,57 @@ type OrderBook struct {
 	askMutex sync.RWMutex
 	bidMutex sync.RWMutex
 
-	BestBidLimits []*Limit
-	BestAskLimits []*Limit
+	bestBidLimits []*Limit
+	bestAskLimits []*Limit
 
-	BidLimits map[string]*Limit
-	AskLimits map[string]*Limit
+	bidLimits map[string]*Limit
+	askLimits map[string]*Limit
 
-	BidVolume decimal.Decimal
-	AskVolume decimal.Decimal
+	bidVolume decimal.Decimal
+	askVolume decimal.Decimal
+
+	logger *slog.Logger
 }
 
-func NewOrderBook() *OrderBook {
+func NewOrderBook(logger *slog.Logger) *OrderBook {
 	return &OrderBook{
-		BestBidLimits: make([]*Limit, 0),
-		BestAskLimits: make([]*Limit, 0),
-		BidLimits:     make(map[string]*Limit),
-		AskLimits:     make(map[string]*Limit),
+		bestBidLimits: make([]*Limit, 0),
+		bestAskLimits: make([]*Limit, 0),
+		bidLimits:     make(map[string]*Limit),
+		askLimits:     make(map[string]*Limit),
+		logger:        logger,
 	}
 }
 
 type Order struct {
 	ID         int64
-	IsBid      bool
-	Type       string
-	Price      decimal.Decimal
-	Qty        decimal.Decimal
-	SizeFilled decimal.Decimal
+	isBid      bool
+	orderType  string
+	price      decimal.Decimal
+	qty        decimal.Decimal
+	sizeFilled decimal.Decimal
 }
 
 type Match struct {
-	Qty                    decimal.Decimal
-	Price                  decimal.Decimal
-	CounterOrderID         int64
-	CounterOrderStatus     string
-	CounterOrderSizeFilled decimal.Decimal
+	qty                    decimal.Decimal
+	price                  decimal.Decimal
+	counterOrderID         int64
+	counterOrderSizeFilled decimal.Decimal
 }
 
 func (ob *OrderBook) placeLimitOrder(price string, order *Order) (*[]Match, error) {
-	slog.Info("Placing limit order:", "orderID", order.ID, "isBid", order.IsBid, "size", order.Qty, "price", price)
-
 	var (
 		limit   *Limit
 		matches *[]Match
 	)
 
 	switch {
-	case order.IsBid:
+	case order.isBid:
 		ob.askMutex.RLock()
-		if len(ob.BestAskLimits) > 0 && order.Price.Cmp(ob.BestAskLimits[0].Price) >= 0 { //if limit order can be filled or partialy filled instantly
+		if len(ob.bestAskLimits) > 0 && order.price.Cmp(ob.bestAskLimits[0].price) >= 0 { //if limit order can be filled or partialy filled instantly
 			ob.askMutex.RUnlock()
 			matches = ob.fillOrder(order)
-			if order.Qty.IsZero() {
+			if order.qty.IsZero() {
 				return matches, nil
 			}
 		} else {
@@ -73,21 +73,19 @@ func (ob *OrderBook) placeLimitOrder(price string, order *Order) (*[]Match, erro
 		ob.bidMutex.Lock()
 		defer ob.bidMutex.Unlock()
 
-		if limit = ob.BidLimits[price]; limit == nil { //get or create limit if not exists
-			slog.Info("New limt:", "price", order.Price)
-
-			limit = NewLimit(order.Price)
-			ob.BidLimits[price] = limit
-			ob.BestBidLimits = append(ob.BestBidLimits, limit)
-			ob.sortBestLimits(order.IsBid)
+		if limit = ob.bidLimits[price]; limit == nil { //get or create limit if not exists
+			limit = NewLimit(order.price)
+			ob.bidLimits[price] = limit
+			ob.bestBidLimits = append(ob.bestBidLimits, limit)
+			ob.sortBestLimits(order.isBid)
 		}
 
-	case !order.IsBid:
+	case !order.isBid:
 		ob.bidMutex.RLock()
-		if len(ob.BestBidLimits) > 0 && order.Price.Cmp(ob.BestBidLimits[0].Price) <= 0 { //if limit order can be filled or partialy filled instantly
+		if len(ob.bestBidLimits) > 0 && order.price.Cmp(ob.bestBidLimits[0].price) <= 0 { //if limit order can be filled or partialy filled instantly
 			ob.bidMutex.RUnlock()
 			matches = ob.fillOrder(order)
-			if order.Qty.IsZero() {
+			if order.qty.IsZero() {
 				return matches, nil
 			}
 		} else {
@@ -96,28 +94,22 @@ func (ob *OrderBook) placeLimitOrder(price string, order *Order) (*[]Match, erro
 
 		ob.askMutex.Lock()
 		defer ob.askMutex.Unlock()
-		if limit = ob.AskLimits[price]; limit == nil { //get or create limit if not exists
-			slog.Info("New limt:", "price", order.Price)
-
-			limit = NewLimit(order.Price)
-			ob.AskLimits[price] = limit
-			ob.BestAskLimits = append(ob.BestAskLimits, limit)
-			ob.sortBestLimits(order.IsBid)
+		if limit = ob.askLimits[price]; limit == nil { //get or create limit if not exists
+			limit = NewLimit(order.price)
+			ob.askLimits[price] = limit
+			ob.bestAskLimits = append(ob.bestAskLimits, limit)
+			ob.sortBestLimits(order.isBid)
 		}
 	}
 
-	limit.Orders = append(limit.Orders, order)
-	limit.TotalSize = limit.TotalSize.Add(order.Qty)
-	slog.Info("Limit order placed:", "totalSize", limit.TotalSize)
+	limit.orders = append(limit.orders, order)
+	limit.totalSize = limit.totalSize.Add(order.qty)
 	return matches, nil
 }
 
 func (ob *OrderBook) placeMarketOrder(order *Order) (*[]Match, error) {
-	slog.Info("Placing market order:", "orderID", order.ID, "isBid", order.IsBid, "size", order.Qty)
-
 	matches := ob.fillOrder(order)
-	if !order.Qty.IsZero() {
-		slog.Info("Not enough volume")
+	if !order.qty.IsZero() {
 		return nil, errors.New("not enough volume")
 	}
 
@@ -125,13 +117,11 @@ func (ob *OrderBook) placeMarketOrder(order *Order) (*[]Match, error) {
 }
 
 func (ob *OrderBook) cancelLimitOrder(orderID int64, orderPrice string, isBid bool) error {
-	slog.Info("Cancelling limit order", "orderID", orderID)
-
 	switch {
 	case isBid:
 		ob.bidMutex.Lock()
 		defer ob.bidMutex.Unlock()
-		limit, ok := ob.BidLimits[orderPrice]
+		limit, ok := ob.bidLimits[orderPrice]
 		if !ok {
 			return errors.New("limit not found")
 		}
@@ -140,10 +130,14 @@ func (ob *OrderBook) cancelLimitOrder(orderID int64, orderPrice string, isBid bo
 			return errors.New("order not found")
 		}
 
+		if limit.totalSize.IsZero() {
+			removeEmptyLimits([]string{orderPrice}, &ob.bestBidLimits, ob.bidLimits)
+		}
+
 	case !isBid:
 		ob.askMutex.Lock()
 		defer ob.askMutex.Unlock()
-		limit, ok := ob.AskLimits[orderPrice]
+		limit, ok := ob.askLimits[orderPrice]
 		if !ok {
 			return errors.New("limit not found")
 		}
@@ -162,56 +156,56 @@ func (ob *OrderBook) fillOrder(order *Order) *[]Match {
 	)
 
 	switch {
-	case order.IsBid:
+	case order.isBid:
 		ob.askMutex.Lock()
 
 		defer func() {
 			if emptyLimits != nil {
-				removeEmptyLimits(emptyLimits, &ob.BestAskLimits, ob.AskLimits)
+				removeEmptyLimits(emptyLimits, &ob.bestAskLimits, ob.askLimits)
 			}
 			ob.askMutex.Unlock()
 		}()
 
-		for _, bestAskLimit := range ob.BestAskLimits {
-			if order.Type == "limit" && order.Price.Cmp(bestAskLimit.Price) < 0 {
+		for _, bestAskLimit := range ob.bestAskLimits {
+			if order.orderType == "limit" && order.price.Cmp(bestAskLimit.price) < 0 {
 				return matches
 			}
 
 			if bestAskLimit.matchOrders(order, matches) {
-				if bestAskLimit.TotalSize.IsZero() {
-					emptyLimitPriceString := bestAskLimit.Price.String()
+				if bestAskLimit.totalSize.IsZero() {
+					emptyLimitPriceString := bestAskLimit.price.String()
 					emptyLimits = append(emptyLimits, emptyLimitPriceString)
 				}
 				return matches
 			}
 
-			emptyLimitPriceString := bestAskLimit.Price.String()
+			emptyLimitPriceString := bestAskLimit.price.String()
 			emptyLimits = append(emptyLimits, emptyLimitPriceString)
 		}
 
-	case !order.IsBid:
+	case !order.isBid:
 		ob.bidMutex.Lock()
 		defer func() {
 			if emptyLimits != nil {
-				removeEmptyLimits(emptyLimits, &ob.BestBidLimits, ob.BidLimits)
+				removeEmptyLimits(emptyLimits, &ob.bestBidLimits, ob.bidLimits)
 			}
 			ob.bidMutex.Unlock()
 		}()
 
-		for _, bestBidLimit := range ob.BestBidLimits {
-			if order.Type == "limit" && order.Price.Cmp(bestBidLimit.Price) > 0 {
+		for _, bestBidLimit := range ob.bestBidLimits {
+			if order.orderType == "limit" && order.price.Cmp(bestBidLimit.price) > 0 {
 				return matches
 			}
 
 			if bestBidLimit.matchOrders(order, matches) {
-				if bestBidLimit.TotalSize.IsZero() {
-					emptyLimitPriceString := bestBidLimit.Price.String()
+				if bestBidLimit.totalSize.IsZero() {
+					emptyLimitPriceString := bestBidLimit.price.String()
 					emptyLimits = append(emptyLimits, emptyLimitPriceString)
 				}
 				return matches
 			}
 
-			emptyLimitPriceString := bestBidLimit.Price.String()
+			emptyLimitPriceString := bestBidLimit.price.String()
 			emptyLimits = append(emptyLimits, emptyLimitPriceString)
 		}
 	}
@@ -221,19 +215,18 @@ func (ob *OrderBook) fillOrder(order *Order) *[]Match {
 func (ob *OrderBook) sortBestLimits(isBid bool) {
 	switch {
 	case isBid:
-		sort.Slice(ob.BestBidLimits, func(i, j int) bool {
-			return ob.BestBidLimits[i].Price.Cmp(ob.BestBidLimits[j].Price) > 0
+		sort.Slice(ob.bestBidLimits, func(i, j int) bool {
+			return ob.bestBidLimits[i].price.Cmp(ob.bestBidLimits[j].price) > 0
 		})
 
 	case !isBid:
-		sort.Slice(ob.BestAskLimits, func(i, j int) bool {
-			return ob.BestAskLimits[i].Price.Cmp(ob.BestAskLimits[j].Price) < 0
+		sort.Slice(ob.bestAskLimits, func(i, j int) bool {
+			return ob.bestAskLimits[i].price.Cmp(ob.bestAskLimits[j].price) < 0
 		})
 	}
 }
 
 func removeEmptyLimits(emptyLimits []string, bestLimits *[]*Limit, limits map[string]*Limit) {
-	slog.Info("Removing empty limits", "prices", emptyLimits)
 	for _, limitPrice := range emptyLimits {
 		delete(limits, limitPrice)
 	}

@@ -23,7 +23,7 @@ CREATE TABLE matches (
 CREATE OR REPLACE FUNCTION update_order_status()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.qty = NEW.size_filled THEN
+    IF NEW.size_filled <> OLD.size_filled AND NEW.qty = NEW.size_filled THEN
         NEW.status := 'filled';
         NEW.closed_at := CURRENT_TIMESTAMP;
     END IF;
