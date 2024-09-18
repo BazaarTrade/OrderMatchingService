@@ -15,58 +15,39 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 	}
 	defer tx.Rollback(context.Background())
 
-	var updatedOrder models.Order
-	err = tx.QueryRow(context.Background(), `
-		UPDATE orders
-		SET size_filled = $1
-		WHERE id = $2
-		RETURNING id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at
-	`, matches.OrderSizeFilled, matches.OrderID).Scan(
-		&updatedOrder.ID,
-		&updatedOrder.UserID,
-		&updatedOrder.IsBid,
-		&updatedOrder.Symbol,
-		&updatedOrder.Price,
-		&updatedOrder.Qty,
-		&updatedOrder.SizeFilled,
-		&updatedOrder.Status,
-		&updatedOrder.Type,
-		&updatedOrder.CreatedAt,
-		&updatedOrder.ClosedAt,
-	)
+	updateOrder := func(sizeFilled string, orderID int64) (models.Order, error) {
+		var order models.Order
+		err := tx.QueryRow(context.Background(), `
+			UPDATE orders
+			SET size_filled = $1
+			WHERE id = $2
+			RETURNING id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at
+		`, sizeFilled, orderID).Scan(
+			&order.ID, &order.UserID, &order.IsBid, &order.Symbol, &order.Price,
+			&order.Qty, &order.SizeFilled, &order.Status, &order.Type,
+			&order.CreatedAt, &order.ClosedAt,
+		)
+		if err != nil {
+			return models.Order{}, err
+		}
+		return order, nil
+	}
+
+	updatedOrder, err := updateOrder(matches.OrderSizeFilled, matches.OrderID)
 	if err != nil {
 		p.logger.Error("Error updating size_filled", "error", err)
 		return nil, err
 	}
 
-	var updatedOrders []models.Order
-	updatedOrders = append(updatedOrders, updatedOrder)
+	var updatedOrders = []models.Order{updatedOrder}
 
 	for _, match := range matches.Matches {
-		var counterOrder models.Order
-		err = tx.QueryRow(context.Background(), `
-			UPDATE orders
-			SET size_filled = $1
-			WHERE id = $2
-			RETURNING id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at
-		`, match.CounterOrderSizeFilled, match.CounterOrderID).Scan(
-			&counterOrder.ID,
-			&counterOrder.UserID,
-			&counterOrder.IsBid,
-			&counterOrder.Symbol,
-			&counterOrder.Price,
-			&counterOrder.Qty,
-			&counterOrder.SizeFilled,
-			&counterOrder.Status,
-			&counterOrder.Type,
-			&counterOrder.CreatedAt,
-			&counterOrder.ClosedAt,
-		)
+		updatedOrder, err = updateOrder(matches.OrderSizeFilled, matches.OrderID)
 		if err != nil {
 			p.logger.Error("Error updating size_filled", "error", err)
 			return nil, err
 		}
-		updatedOrders = append(updatedOrders, counterOrder)
+		updatedOrders = append(updatedOrders, updatedOrder)
 
 		_, err = tx.Exec(context.Background(), `
 			INSERT INTO matches (order_id, order_id_counter, qty, price)
@@ -89,7 +70,7 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 
 func (p *Postgres) GetMatches(orderID int64) ([]models.Match, error) {
 	rows, err := p.db.Query(context.Background(), `
-	SELECT FROM mathces(qty, price) WHERE order_id = $1
+	SELECT FROM matches(qty, price) WHERE order_id = $1
 	`, orderID)
 	if err != nil {
 		p.logger.Error("Error selecting matches", "error", err)

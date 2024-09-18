@@ -8,8 +8,10 @@ type Storer interface {
 	CreateOrder(order models.PlaceOrderReq) (int64, error)
 	GetOrdersByUser(userID int64) ([]models.Order, error)
 	GetOrderByOrderID(orderID int64) (models.Order, error)
-	SetStatusToCancel(orderID int64) (models.Order, error)
 	GetNotFilledOrdersByUser(userID int64) ([]models.Order, error)
+
+	SetOrderStatusToError(orderID int64) error
+	SetOrderStatusToCancel(orderID int64) error
 
 	AddMatches(matches AddMatchesReq) ([]models.Order, error)
 	GetMatches(orderID int64) ([]models.Match, error)

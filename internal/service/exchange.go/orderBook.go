@@ -80,6 +80,8 @@ func (ob *OrderBook) placeLimitOrder(price string, order *Order) (*[]Match, erro
 			ob.sortBestLimits(order.isBid)
 		}
 
+		ob.bidVolume = ob.bidVolume.Add(order.qty)
+
 	case !order.isBid:
 		ob.bidMutex.RLock()
 		if len(ob.bestBidLimits) > 0 && order.price.Cmp(ob.bestBidLimits[0].price) <= 0 { //if limit order can be filled or partialy filled instantly
@@ -94,12 +96,15 @@ func (ob *OrderBook) placeLimitOrder(price string, order *Order) (*[]Match, erro
 
 		ob.askMutex.Lock()
 		defer ob.askMutex.Unlock()
+
 		if limit = ob.askLimits[price]; limit == nil { //get or create limit if not exists
 			limit = NewLimit(order.price)
 			ob.askLimits[price] = limit
 			ob.bestAskLimits = append(ob.bestAskLimits, limit)
 			ob.sortBestLimits(order.isBid)
 		}
+
+		ob.askVolume = ob.askVolume.Add(order.qty)
 	}
 
 	limit.orders = append(limit.orders, order)
@@ -173,8 +178,7 @@ func (ob *OrderBook) fillOrder(order *Order) *[]Match {
 
 			if bestAskLimit.matchOrders(order, matches) {
 				if bestAskLimit.totalSize.IsZero() {
-					emptyLimitPriceString := bestAskLimit.price.String()
-					emptyLimits = append(emptyLimits, emptyLimitPriceString)
+					emptyLimits = append(emptyLimits, bestAskLimit.price.String())
 				}
 				return matches
 			}
@@ -199,8 +203,7 @@ func (ob *OrderBook) fillOrder(order *Order) *[]Match {
 
 			if bestBidLimit.matchOrders(order, matches) {
 				if bestBidLimit.totalSize.IsZero() {
-					emptyLimitPriceString := bestBidLimit.price.String()
-					emptyLimits = append(emptyLimits, emptyLimitPriceString)
+					emptyLimits = append(emptyLimits, bestBidLimit.price.String())
 				}
 				return matches
 			}

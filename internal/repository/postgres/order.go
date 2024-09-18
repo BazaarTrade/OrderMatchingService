@@ -7,7 +7,7 @@ import (
 )
 
 func (p *Postgres) CreateOrder(order models.PlaceOrderReq) (int64, error) {
-	var orderID int64
+	var orderID int
 	err := p.db.QueryRow(context.Background(), `
 	INSERT INTO orders
 	(user_id, is_bid, symbol, price, qty, type, status)
@@ -20,7 +20,7 @@ func (p *Postgres) CreateOrder(order models.PlaceOrderReq) (int64, error) {
 		p.logger.Error("Error inserting order", "error", err)
 		return 0, err
 	}
-	return orderID, nil
+	return int64(orderID), nil
 }
 
 func (p *Postgres) GetOrderByOrderID(orderID int64) (models.Order, error) {
@@ -125,15 +125,26 @@ func (p *Postgres) GetNotFilledOrdersByUser(userID int64) ([]models.Order, error
 	return orders, nil
 }
 
-func (p *Postgres) SetStatusToCancel(orderID int64) (models.Order, error) {
+func (p *Postgres) SetOrderStatusToCancel(orderID int64) error {
 	_, err := p.db.Exec(context.Background(), `
 	UPDATE orders SET status = 'canceled', closed_at = CURRENT_TIMESTAMP 
 	WHERE id = $1
 	`, orderID)
 	if err != nil {
 		p.logger.Error("Error updating order", "error", err)
-		return models.Order{}, err
+		return err
 	}
+	return nil
+}
 
-	return p.GetOrderByOrderID(orderID)
+func (p *Postgres) SetOrderStatusToError(orderID int64) error {
+	_, err := p.db.Exec(context.Background(), `
+	UPDATE orders SET status = 'error', closed_at = CURRENT_TIMESTAMP 
+	WHERE id = $1
+	`, orderID)
+	if err != nil {
+		p.logger.Error("Error updating order", "error", err)
+		return err
+	}
+	return nil
 }

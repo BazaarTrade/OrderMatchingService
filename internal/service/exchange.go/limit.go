@@ -23,7 +23,8 @@ func (l *Limit) matchOrders(order *Order, matches *[]Match) bool {
 
 	defer func() {
 		if countFilledOrders > 0 {
-			l.removeEmptyOrders(countFilledOrders)
+			// delete filled orders
+			l.orders = l.orders[countFilledOrders:]
 		}
 	}()
 
@@ -36,8 +37,8 @@ func (l *Limit) matchOrders(order *Order, matches *[]Match) bool {
 		switch order.qty.Cmp(bestOrder.qty) {
 		case 1: // order.qty > bestOrder.qty
 			bestOrder.sizeFilled = bestOrder.sizeFilled.Add(bestOrder.qty)
-			order.qty = order.qty.Sub(bestOrder.qty)
 			order.sizeFilled = order.sizeFilled.Add(bestOrder.qty)
+			order.qty = order.qty.Sub(bestOrder.qty)
 			l.totalSize = l.totalSize.Sub(bestOrder.qty)
 			match.qty = bestOrder.qty
 			bestOrder.qty = decimal.NewFromFloat(0)
@@ -78,8 +79,4 @@ func (l *Limit) removeOrder(orderID int64) bool {
 		}
 	}
 	return false
-}
-
-func (l *Limit) removeEmptyOrders(countOrdersToDelete int) {
-	l.orders = l.orders[countOrdersToDelete:]
 }

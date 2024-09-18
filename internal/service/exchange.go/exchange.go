@@ -50,11 +50,6 @@ func (e *Exchange) PlaceOrder(input models.PlaceOrderReq) ([]models.Order, error
 		return nil, errors.New("Order book not found")
 	}
 
-	orderID, err := e.db.CreateOrder(input)
-	if err != nil {
-		return nil, err
-	}
-
 	priceDecimal, err := decimal.NewFromString(input.Price)
 	if err != nil {
 		e.logger.Error("Error converting price to decimal", "error", err)
@@ -66,6 +61,17 @@ func (e *Exchange) PlaceOrder(input models.PlaceOrderReq) ([]models.Order, error
 		e.logger.Error("Error converting qty to decimal", "error", err)
 		return nil, err
 	}
+
+	orderID, err := e.db.CreateOrder(input)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if err != nil {
+			go e.db.SetOrderStatusToError(orderID)
+		}
+	}()
 
 	var (
 		matches *[]Match
@@ -149,10 +155,16 @@ func (e *Exchange) CancelOrder(orderID int64) (models.Order, error) {
 		return models.Order{}, err
 	}
 
-	order, err = e.db.SetStatusToCancel(orderID)
+	err = e.db.SetOrderStatusToCancel(orderID)
 	if err != nil {
 		return models.Order{}, err
 	}
+
+	order, err = e.db.GetOrderByOrderID(orderID)
+	if err != nil {
+		return models.Order{}, err
+	}
+
 	return order, nil
 }
 
