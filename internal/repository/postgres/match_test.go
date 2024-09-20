@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Moha192/OrderMatchingService/internal/repository"
+	"github.com/BazaarTrade/OrderMatchingService/internal/repository"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/require"
 )

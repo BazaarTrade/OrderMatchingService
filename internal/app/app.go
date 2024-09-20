@@ -4,9 +4,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/Moha192/OrderMatchingService/internal/api/gRPC"
-	"github.com/Moha192/OrderMatchingService/internal/repository/postgres"
-	"github.com/Moha192/OrderMatchingService/internal/service/exchange.go"
+	"github.com/BazaarTrade/OrderMatchingService/internal/api/gRPC"
+	"github.com/BazaarTrade/OrderMatchingService/internal/repository/postgres"
+	"github.com/BazaarTrade/OrderMatchingService/internal/service/exchange.go"
 )
 
 func Run() {

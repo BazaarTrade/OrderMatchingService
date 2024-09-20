@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/Moha192/OrderMatchingService/internal/models"
+	"github.com/BazaarTrade/OrderMatchingService/internal/models"
 )
 
 type Exchanger interface {

@@ -8,11 +8,11 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 
 service matchingEngine {
-    rpc PlaceOrder(PlaceOrderReq) returns (OrdersRes) {}
-    rpc CancelOrder(CancelOrderReq) returns (order) {}
+    rpc PlaceOrder(PlaceOrderReq) returns (Orders) {}
+    rpc CancelOrder(OrderID) returns (order) {}
 
-    rpc GetCurrentOrders(UserIDReq) returns (OrdersRes) {}
-    rpc GetOrders(UserIDReq) returns (OrdersRes) {}
+    rpc GetCurrentOrders(UserID) returns (Orders) {}
+    rpc GetOrders(UserID) returns (Orders) {}
 
     rpc CreateOrderBook(OrderBookSymbol) returns (google.protobuf.Empty) {}
     rpc DeleteOrderBook(OrderBookSymbol) returns (google.protobuf.Empty) {}
@@ -27,22 +27,21 @@ message PlaceOrderReq {
     string type = 6;
 }
 
-message OrdersRes {
+message Orders {
     repeated order Orders = 1;
 }
 
-message CancelOrderReq {
-    int64 ID = 1;
+message OrderID {
+    int64 orderID = 1;
 }
 
-message UserIDReq {
+message UserID {
     int64 userID = 1;
 }
 
 message OrderBookSymbol {
     string symbol = 1;
 }
-
 
 message order {
     int64 ID = 1;
@@ -56,11 +55,4 @@ message order {
     string type = 9;
     google.protobuf.Timestamp created_at = 10;
     google.protobuf.Timestamp closed_at = 11;
-}
-
-message match {
-    int64 counterOrderID = 1;
-    int64 counterUserID = 2;
-    string qty = 3;
-    string price = 4;
 }

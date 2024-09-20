@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"github.com/Moha192/OrderMatchingService/internal/models"
+	"github.com/BazaarTrade/OrderMatchingService/internal/models"
 )
 
 type Storer interface {

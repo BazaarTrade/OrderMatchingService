@@ -3,8 +3,8 @@ package postgres
 import (
 	"context"
 
-	"github.com/Moha192/OrderMatchingService/internal/models"
-	"github.com/Moha192/OrderMatchingService/internal/repository"
+	"github.com/BazaarTrade/OrderMatchingService/internal/models"
+	"github.com/BazaarTrade/OrderMatchingService/internal/repository"
 )
 
 func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order, error) {

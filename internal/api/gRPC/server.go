@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/Moha192/OrderMatchingService/internal/models"
-	pb "github.com/Moha192/OrderMatchingService/internal/proto"
-	"github.com/Moha192/OrderMatchingService/internal/service"
+	pb "github.com/BazaarTrade/GeneratedProto/pb"
+	"github.com/BazaarTrade/OrderMatchingService/internal/models"
+	"github.com/BazaarTrade/OrderMatchingService/internal/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
@@ -52,7 +52,7 @@ func (s *Server) StartGRPCServer() error {
 	return nil
 }
 
-func (s *Server) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq) (*pb.OrdersRes, error) {
+func (s *Server) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq) (*pb.Orders, error) {
 	s.logger.Info("PlaceOrder request", "user_id", req.UserID)
 
 	var placeOrder = models.PlaceOrderReq{
@@ -72,7 +72,7 @@ func (s *Server) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq) (*pb.Ord
 		return nil, status.Errorf(codes.Internal, "Failed to palce order: %v", err)
 	}
 
-	var res pb.OrdersRes
+	var res pb.Orders
 	for _, o := range modifiedOrders {
 		var order = pb.Order{
 			ID:         o.ID,
@@ -93,11 +93,10 @@ func (s *Server) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq) (*pb.Ord
 	return &res, nil
 }
 
-func (s *Server) CancelOrder(ctx context.Context, req *pb.CancelOrderReq) (*pb.Order, error) {
-	s.logger.Info("CancelOrder request", "order_id", req.ID)
+func (s *Server) CancelOrder(ctx context.Context, req *pb.OrderID) (*pb.Order, error) {
+	s.logger.Info("CancelOrder request", "order_id", req.OrderID)
 
-	orderID := req.ID
-	o, err := s.service.CancelOrder(orderID)
+	o, err := s.service.CancelOrder(req.OrderID)
 	if err != nil {
 		if err.Error() == "Order book not found" {
 			return nil, status.Errorf(codes.NotFound, err.Error())
@@ -121,7 +120,7 @@ func (s *Server) CancelOrder(ctx context.Context, req *pb.CancelOrderReq) (*pb.O
 	return &order, nil
 }
 
-func (s *Server) GetCurrentOrders(ctx context.Context, req *pb.UserIDReq) (*pb.OrdersRes, error) {
+func (s *Server) GetCurrentOrders(ctx context.Context, req *pb.UserID) (*pb.Orders, error) {
 	s.logger.Info("GetCurrentOrders request", "user_id", req.UserID)
 
 	orders, err := s.service.GetCurrentOrders(req.UserID)
@@ -129,7 +128,7 @@ func (s *Server) GetCurrentOrders(ctx context.Context, req *pb.UserIDReq) (*pb.O
 		return nil, status.Errorf(codes.Internal, "Failed to get current orders: %v", err)
 	}
 
-	var res pb.OrdersRes
+	var res pb.Orders
 	for _, o := range orders {
 		res.Orders = append(res.Orders, &pb.Order{
 			ID:         o.ID,
@@ -147,7 +146,7 @@ func (s *Server) GetCurrentOrders(ctx context.Context, req *pb.UserIDReq) (*pb.O
 	return &res, nil
 }
 
-func (s *Server) GetOrders(ctx context.Context, req *pb.UserIDReq) (*pb.OrdersRes, error) {
+func (s *Server) GetOrders(ctx context.Context, req *pb.UserID) (*pb.Orders, error) {
 	s.logger.Info("GetOrders request", "user_id", req.UserID)
 
 	orders, err := s.service.GetOrders(req.UserID)
@@ -155,7 +154,7 @@ func (s *Server) GetOrders(ctx context.Context, req *pb.UserIDReq) (*pb.OrdersRe
 		return nil, status.Errorf(codes.Internal, "Failed to get orders: %v", err)
 	}
 
-	var res pb.OrdersRes
+	var res pb.Orders
 	for _, o := range orders {
 		res.Orders = append(res.Orders, &pb.Order{
 			ID:         o.ID,

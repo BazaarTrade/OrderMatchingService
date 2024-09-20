@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/Moha192/OrderMatchingService/internal/models"
+	"github.com/BazaarTrade/OrderMatchingService/internal/models"
 )
 
 func (p *Postgres) CreateOrder(order models.PlaceOrderReq) (int64, error) {

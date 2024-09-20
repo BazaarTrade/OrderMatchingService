@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/Moha192/OrderMatchingService/internal/app"
+	"github.com/BazaarTrade/OrderMatchingService/internal/app"
 )
 
 func main() {

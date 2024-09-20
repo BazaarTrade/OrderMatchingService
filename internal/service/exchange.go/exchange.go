@@ -4,8 +4,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/Moha192/OrderMatchingService/internal/models"
-	"github.com/Moha192/OrderMatchingService/internal/repository"
+	"github.com/BazaarTrade/OrderMatchingService/internal/models"
+	"github.com/BazaarTrade/OrderMatchingService/internal/repository"
 	"github.com/shopspring/decimal"
 )
 
