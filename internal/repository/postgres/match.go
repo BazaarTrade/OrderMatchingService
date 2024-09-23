@@ -42,7 +42,7 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 	var updatedOrders = []models.Order{updatedOrder}
 
 	for _, match := range matches.Matches {
-		updatedOrder, err = updateOrder(matches.OrderSizeFilled, matches.OrderID)
+		updatedOrder, err = updateOrder(match.CounterOrderSizeFilled, match.CounterOrderID)
 		if err != nil {
 			p.logger.Error("Error updating size_filled", "error", err)
 			return nil, err

@@ -139,6 +139,7 @@ func (s *Server) GetCurrentOrders(ctx context.Context, req *pb.UserID) (*pb.Orde
 			Qty:        o.Qty,
 			SizeFilled: o.SizeFilled,
 			Status:     o.Status,
+			Type:       o.Type,
 			CreatedAt:  timestamppb.New(o.CreatedAt),
 			ClosedAt:   timestamppb.New(o.ClosedAt.Time),
 		})
@@ -165,6 +166,7 @@ func (s *Server) GetOrders(ctx context.Context, req *pb.UserID) (*pb.Orders, err
 			Qty:        o.Qty,
 			SizeFilled: o.SizeFilled,
 			Status:     o.Status,
+			Type:       o.Type,
 			CreatedAt:  timestamppb.New(o.CreatedAt),
 			ClosedAt:   timestamppb.New(o.ClosedAt.Time),
 		})
