@@ -10,7 +10,7 @@ func (p *Postgres) CreateOrder(order models.PlaceOrderReq) (int64, error) {
 	var orderID int
 	err := p.db.QueryRow(context.Background(), `
 	INSERT INTO orders
-	(user_id, is_bid, symbol, price, qty, type, status)
+	(userID, isBid, symbol, price, qty, type, status)
 	VALUES
 	($1, $2, $3, $4, $5, $6, $7)
 	RETURNING
@@ -26,7 +26,7 @@ func (p *Postgres) CreateOrder(order models.PlaceOrderReq) (int64, error) {
 func (p *Postgres) GetOrderByOrderID(orderID int64) (models.Order, error) {
 	var order models.Order
 	row := p.db.QueryRow(context.Background(), `
-	SELECT id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at
+	SELECT id, userID, isBid, symbol, price, qty, sizeFilled, status, type, createdAt, closedAt
 	FROM orders
 	WHERE id = $1
 	`, orderID)
@@ -53,9 +53,9 @@ func (p *Postgres) GetOrderByOrderID(orderID int64) (models.Order, error) {
 
 func (p *Postgres) GetOrdersByUser(userID int64) ([]models.Order, error) {
 	rows, err := p.db.Query(context.Background(), `
-	SELECT id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at
+	SELECT id, userID, isBid, symbol, price, qty, sizeFilled, status, type, createdAt, closedAt
 	FROM orders
-	WHERE user_id = $1
+	WHERE userID = $1
 	`, userID)
 	if err != nil {
 		p.logger.Error("Error selecting orders", "error", err)
@@ -90,9 +90,9 @@ func (p *Postgres) GetOrdersByUser(userID int64) ([]models.Order, error) {
 
 func (p *Postgres) GetNotFilledOrdersByUser(userID int64) ([]models.Order, error) {
 	rows, err := p.db.Query(context.Background(), `
-	SELECT id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at
+	SELECT id, userID, isBid, symbol, price, qty, sizeFilled, status, type, createdAt, closedAt
 	FROM orders
-	WHERE user_id = $1 AND status IN ('filling', 'canceled')
+	WHERE userID = $1 AND status IN ('filling', 'canceled')
 	`, userID)
 	if err != nil {
 		p.logger.Error("Error selecting orders", "error", err)
@@ -127,7 +127,7 @@ func (p *Postgres) GetNotFilledOrdersByUser(userID int64) ([]models.Order, error
 
 func (p *Postgres) SetOrderStatusToCancel(orderID int64) error {
 	_, err := p.db.Exec(context.Background(), `
-	UPDATE orders SET status = 'canceled', closed_at = CURRENT_TIMESTAMP 
+	UPDATE orders SET status = 'canceled', closedAt = CURRENT_TIMESTAMP 
 	WHERE id = $1
 	`, orderID)
 	if err != nil {
@@ -139,7 +139,7 @@ func (p *Postgres) SetOrderStatusToCancel(orderID int64) error {
 
 func (p *Postgres) SetOrderStatusToError(orderID int64) error {
 	_, err := p.db.Exec(context.Background(), `
-	UPDATE orders SET status = 'error', closed_at = CURRENT_TIMESTAMP 
+	UPDATE orders SET status = 'error', closedAt = CURRENT_TIMESTAMP 
 	WHERE id = $1
 	`, orderID)
 	if err != nil {

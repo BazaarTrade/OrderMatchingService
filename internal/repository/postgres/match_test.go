@@ -33,18 +33,18 @@ func TestAddMatches(t *testing.T) {
 	mock.ExpectBegin()
 
 	// Expectations for updating order
-	mock.ExpectQuery(`UPDATE orders SET size_filled = \$1 WHERE id = \$2 RETURNING id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at`).
+	mock.ExpectQuery(`UPDATE orders SET sizeFilled = \$1 WHERE id = \$2 RETURNING id, userID, isBid, symbol, price, qty, sizeFilled, status, type, createdAt, closedAt`).
 		WithArgs("0.5", int64(1)).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "is_bid", "symbol", "price", "qty", "size_filled", "status", "type", "created_at", "closed_at"}).
-			AddRow(int64(1), int64(1), true, "BTC_USDT", "10000", "1", "0.5", "filling", "limit", time.Now(), nil))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "userID", "isBid", "symbol", "price", "qty", "sizeFilled", "status", "type", "createdAt", "closedAt"}).
+			AddRow(int64(1), int64(1), true, "BTC/USDT", "10000", "1", "0.5", "filling", "limit", time.Now(), nil))
 
-	mock.ExpectQuery(`UPDATE orders SET size_filled = \$1 WHERE id = \$2 RETURNING id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at`).
+	mock.ExpectQuery(`UPDATE orders SET sizeFilled = \$1 WHERE id = \$2 RETURNING id, userID, isBid, symbol, price, qty, sizeFilled, status, type, createdAt, closedAt`).
 		WithArgs("0.5", int64(1)).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "is_bid", "symbol", "price", "qty", "size_filled", "status", "type", "created_at", "closed_at"}).
-			AddRow(int64(1), int64(1), true, "BTC_USDT", "10000", "1", "0.5", "filling", "limit", time.Now(), nil))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "userID", "isBid", "symbol", "price", "qty", "sizeFilled", "status", "type", "createdAt", "closedAt"}).
+			AddRow(int64(1), int64(1), true, "BTC/USDT", "10000", "1", "0.5", "filling", "limit", time.Now(), nil))
 
 	// Expectations for inserting match
-	mock.ExpectExec(`INSERT INTO matches \(order_id, order_id_counter, qty, price\) VALUES \(\$1, \$2, \$3, \$4\)`).
+	mock.ExpectExec(`INSERT INTO matches \(orderID, orderIDCounter, qty, price\) VALUES \(\$1, \$2, \$3, \$4\)`).
 		WithArgs(int64(1), int64(2), "0.5", "10000").
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
@@ -55,7 +55,7 @@ func TestAddMatches(t *testing.T) {
 	orders, err := pg.AddMatches(matchesReq)
 	require.NoError(t, err)
 	require.Len(t, orders, 2)
-	require.Equal(t, "BTC_USDT", orders[0].Symbol)
+	require.Equal(t, "BTC/USDT", orders[0].Symbol)
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -70,7 +70,7 @@ func TestGetMatches(t *testing.T) {
 		logger: slog.New(slog.NewTextHandler(os.Stdout, nil)),
 	}
 
-	mock.ExpectQuery(`SELECT FROM matches\(qty, price\) WHERE order_id = \$1`).
+	mock.ExpectQuery(`SELECT FROM matches\(qty, price\) WHERE orderID = \$1`).
 		WithArgs(int64(1)).
 		WillReturnRows(pgxmock.NewRows([]string{"qty", "price"}).
 			AddRow("0.5", "10000").

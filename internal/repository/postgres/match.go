@@ -19,9 +19,9 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 		var order models.Order
 		err := tx.QueryRow(context.Background(), `
 			UPDATE orders
-			SET size_filled = $1
+			SET sizeFilled = $1
 			WHERE id = $2
-			RETURNING id, user_id, is_bid, symbol, price, qty, size_filled, status, type, created_at, closed_at
+			RETURNING id, userID, isBid, symbol, price, qty, sizeFilled, status, type, createdAt, closedAt
 		`, sizeFilled, orderID).Scan(
 			&order.ID, &order.UserID, &order.IsBid, &order.Symbol, &order.Price,
 			&order.Qty, &order.SizeFilled, &order.Status, &order.Type,
@@ -35,7 +35,7 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 
 	updatedOrder, err := updateOrder(matches.OrderSizeFilled, matches.OrderID)
 	if err != nil {
-		p.logger.Error("Error updating size_filled", "error", err)
+		p.logger.Error("Error updating sizeFilled", "error", err)
 		return nil, err
 	}
 
@@ -44,13 +44,13 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 	for _, match := range matches.Matches {
 		updatedOrder, err = updateOrder(match.CounterOrderSizeFilled, match.CounterOrderID)
 		if err != nil {
-			p.logger.Error("Error updating size_filled", "error", err)
+			p.logger.Error("Error updating sizeFilled", "error", err)
 			return nil, err
 		}
 		updatedOrders = append(updatedOrders, updatedOrder)
 
 		_, err = tx.Exec(context.Background(), `
-			INSERT INTO matches (order_id, order_id_counter, qty, price)
+			INSERT INTO matches (orderID, orderIDCounter, qty, price)
 			VALUES ($1, $2, $3, $4)
 		`, matches.OrderID, match.CounterOrderID, match.Qty, match.Price)
 		if err != nil {
@@ -70,7 +70,7 @@ func (p *Postgres) AddMatches(matches repository.AddMatchesReq) ([]models.Order,
 
 func (p *Postgres) GetMatches(orderID int64) ([]models.Match, error) {
 	rows, err := p.db.Query(context.Background(), `
-	SELECT FROM matches(qty, price) WHERE order_id = $1
+	SELECT FROM matches(qty, price) WHERE orderID = $1
 	`, orderID)
 	if err != nil {
 		p.logger.Error("Error selecting matches", "error", err)
