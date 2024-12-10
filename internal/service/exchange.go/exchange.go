@@ -3,175 +3,269 @@ package exchange
 import (
 	"errors"
 	"log/slog"
+	"sync"
 
 	"github.com/BazaarTrade/OrderMatchingService/internal/models"
 	"github.com/BazaarTrade/OrderMatchingService/internal/repository"
 	"github.com/shopspring/decimal"
 )
 
-type Exchange struct {
-	db         repository.Storer
+type Service struct {
+	db         repository.Repository
 	orderBooks map[string]*OrderBook
+	mu         sync.RWMutex
 	logger     *slog.Logger
 }
 
-func NewExchange(db repository.Storer, logger *slog.Logger) *Exchange {
-	return &Exchange{
+func New(db repository.Repository, logger *slog.Logger) *Service {
+	return &Service{
 		db:         db,
 		orderBooks: make(map[string]*OrderBook),
 		logger:     logger,
 	}
 }
 
-func (e *Exchange) AddOrderBook(symbol string) error {
-	if _, ok := e.orderBooks[symbol]; ok {
-		e.logger.Error("Order book already exists")
-		return errors.New("Order book already exists")
+func (s *Service) CreateOrderBook(pair string, pricePrecisions []int32, qtyPrecision int32) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.orderBooks[pair]; exists {
+		s.logger.Error("order book already exists")
+		return errors.New("order book already exists")
 	}
-	e.orderBooks[symbol] = NewOrderBook(e.logger)
-	e.logger.Info("OrderBook created successfully", "symbol", symbol)
+
+	err := s.db.CreatePair(pair, pricePrecisions, qtyPrecision)
+	if err != nil {
+		return err
+	}
+
+	s.orderBooks[pair] = NewOrderBook(pair, s.logger)
+	s.logger.Info("OrderBook created successfully", "pair", pair)
 	return nil
 }
 
-func (e *Exchange) DeleteOrderBook(symbol string) error {
-	if _, ok := e.orderBooks[symbol]; !ok {
-		e.logger.Error("Order book not found")
-		return errors.New("Order book not found")
+func (s *Service) AddOrderBook(pair string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.orderBooks[pair]; exists {
+		s.logger.Error("order book already exists")
+		return errors.New("order book already exists")
 	}
 
-	e.logger.Info("Order book deleted successfully", "symbol", symbol)
+	s.orderBooks[pair] = NewOrderBook(pair, s.logger)
+	s.logger.Info("OrderBook added successfully", "pair", pair)
 	return nil
 }
 
-func (e *Exchange) PlaceOrder(input models.PlaceOrderReq) ([]models.Order, error) {
-	ob, ok := e.orderBooks[input.Symbol]
-	if !ok {
-		e.logger.Error("Order book not found")
-		return nil, errors.New("Order book not found")
+func (s *Service) DeleteOrderBook(pair string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.orderBooks[pair]; !exists {
+		s.logger.Error("failed to find order book")
+		return errors.New("failed to find order book")
 	}
 
-	priceDecimal, err := decimal.NewFromString(input.Price)
-	if err != nil {
-		e.logger.Error("Error converting price to decimal", "error", err)
-		return nil, err
+	delete(s.orderBooks, pair)
+
+	s.logger.Info("Order book deleted successfully", "pair", pair)
+	return nil
+}
+
+func (s *Service) PlaceOrder(placeOrderReq models.PlaceOrderReq) (models.Order, []models.Order, models.OrderBookSnapshot, error) {
+	ob, exists := s.orderBooks[placeOrderReq.Pair]
+	if !exists {
+		s.logger.Error("failed to find order book", "Pair", placeOrderReq.Pair)
+		return models.Order{}, nil, models.OrderBookSnapshot{}, errors.New("failed to find order book")
 	}
 
-	qtyDecimal, err := decimal.NewFromString(input.Qty)
+	qtyDecimal, err := decimal.NewFromString(placeOrderReq.Qty)
 	if err != nil {
-		e.logger.Error("Error converting qty to decimal", "error", err)
-		return nil, err
+		s.logger.Error("failed to convert qty to decimal", "qty", placeOrderReq.Qty, "error", err)
+		return models.Order{}, nil, models.OrderBookSnapshot{}, err
+	} else if qtyDecimal.IsNegative() {
+		s.logger.Error("invalid qty value", "qty", placeOrderReq.Qty)
+		return models.Order{}, nil, models.OrderBookSnapshot{}, errors.New("invalid qty value")
 	}
 
-	orderID, err := e.db.CreateOrder(input)
+	if placeOrderReq.Type == "market" && !ob.isEnoughQty(placeOrderReq.IsBid, qtyDecimal) {
+		switch {
+		case placeOrderReq.IsBid:
+			s.logger.Error("not enough ask qty", "askQty", ob.askQty, "required Qty", qtyDecimal)
+			return models.Order{}, nil, models.OrderBookSnapshot{}, errors.New("not enough ask qty")
+
+		case !placeOrderReq.IsBid:
+			s.logger.Error("not enough bid qty", "bidQty", ob.bidQty, "required Qty", qtyDecimal)
+			return models.Order{}, nil, models.OrderBookSnapshot{}, errors.New("not enough bid qty")
+		}
+	}
+
+	orderID, err := s.db.CreateOrder(placeOrderReq)
 	if err != nil {
-		return nil, err
+		s.logger.Error("failed to create order", "userID", placeOrderReq.UserID, "pair", placeOrderReq.Pair, "error", err)
+		return models.Order{}, nil, models.OrderBookSnapshot{}, err
 	}
 
 	defer func() {
 		if err != nil {
-			go e.db.SetOrderStatusToError(orderID)
+			go s.db.SetOrderStatusToError(orderID)
 		}
 	}()
 
 	var (
-		matches *[]Match
-		order   = &Order{
+		matches    []Match
+		placeOrder = &Order{
 			ID:        orderID,
-			isBid:     input.IsBid,
-			orderType: input.Type,
-			price:     priceDecimal,
+			isBid:     placeOrderReq.IsBid,
+			orderType: placeOrderReq.Type,
 			qty:       qtyDecimal,
 		}
+		orderSizeFilled decimal.Decimal
 	)
 
-	switch order.orderType {
+	switch placeOrder.orderType {
 	case "limit":
-		e.logger.Info(
+		placeOrder.price, err = decimal.NewFromString(placeOrderReq.Price)
+		if err != nil {
+			s.logger.Error("failed to convert price to decimal", "price", placeOrderReq.Price, "error", err)
+			return models.Order{}, nil, models.OrderBookSnapshot{}, err
+
+		} else if placeOrder.price.LessThanOrEqual(decimal.Zero) {
+			s.logger.Error("invalid price value", "qty", placeOrderReq.Qty)
+			return models.Order{}, nil, models.OrderBookSnapshot{}, errors.New("invalid price value")
+		}
+
+		s.logger.Info(
 			"Placing limit Order",
-			"userID", input.UserID,
+			"userID", placeOrderReq.UserID,
 			"orderID", orderID,
-			"symbol", input.Symbol,
-			"isBid", input.IsBid,
-			"price", input.Price,
-			"qty", input.Qty,
+			"Pair", placeOrderReq.Pair,
+			"isBid", placeOrderReq.IsBid,
+			"price", placeOrderReq.Price,
+			"qty", placeOrderReq.Qty,
 		)
-		matches, err = ob.placeLimitOrder(input.Price, order)
+
+		matches, orderSizeFilled, err = ob.placeLimitOrder(placeOrderReq.Price, placeOrder)
+		if err != nil {
+			s.logger.Error("failed to place limit order", "error", err)
+			return models.Order{}, nil, models.OrderBookSnapshot{}, err
+		}
+
 	case "market":
-		e.logger.Info(
+		s.logger.Info(
 			"Placing market Order",
-			"userID", input.UserID,
+			"userID", placeOrderReq.UserID,
 			"orderID", orderID,
-			"symbol", input.Symbol,
-			"isBid", input.IsBid,
-			"price", input.Price,
-			"qty", input.Qty,
+			"Pair", placeOrderReq.Pair,
+			"isBid", placeOrderReq.IsBid,
+			"qty", placeOrderReq.Qty,
 		)
-		matches, err = ob.placeMarketOrder(order)
-	}
-	if err != nil {
-		return nil, err
+
+		matches, err = ob.placeMarketOrder(placeOrder)
+		if err != nil {
+			s.logger.Error("failed to place market order", "error", err)
+			return models.Order{}, nil, models.OrderBookSnapshot{}, err
+		}
+
+		if len(matches) < 1 {
+			s.logger.Warn("no matches found for order", "orderID", orderID)
+			return models.Order{}, nil, models.OrderBookSnapshot{}, errors.New("no matches found for order")
+		}
+
+		orderSizeFilled = placeOrder.sizeFilled
 	}
 
-	var addMatchesReq = repository.AddMatchesReq{
-		OrderID:         order.ID,
-		OrderSizeFilled: order.sizeFilled.String(),
-	}
+	var matchOrders = make([]models.Order, len(matches))
+	if len(matches) > 0 {
+		err = s.db.UpdateOrderPrice(orderID, avgPrice(matches).String())
+		if err != nil {
+			return models.Order{}, nil, models.OrderBookSnapshot{}, err
+		}
 
-	if matches != nil {
-		for _, match := range *matches {
-			var newMatch = repository.Match{
-				Qty:                    match.qty.String(),
-				Price:                  match.price.String(),
-				CounterOrderID:         match.counterOrderID,
-				CounterOrderSizeFilled: match.counterOrderSizeFilled.String(),
+		for i, match := range matches {
+			matchOrders[i], err = s.db.UpdateOrderSizeFilled(match.Order.ID, match.Order.sizeFilled.String())
+			if err != nil {
+				return models.Order{}, nil, models.OrderBookSnapshot{}, err
 			}
-			addMatchesReq.Matches = append(addMatchesReq.Matches, newMatch)
+
+			err = s.db.AddMatch(orderID, models.Match{
+				OrderID: match.Order.ID,
+				Qty:     match.Qty.String(),
+				Price:   match.Order.price.String(),
+			})
+			if err != nil {
+				return models.Order{}, nil, models.OrderBookSnapshot{}, err
+			}
 		}
 	}
 
-	updatedOrders, err := e.db.AddMatches(addMatchesReq)
+	order, err := s.db.UpdateOrderSizeFilled(orderID, orderSizeFilled.String())
 	if err != nil {
-		return nil, err
+		return models.Order{}, nil, models.OrderBookSnapshot{}, err
 	}
 
-	e.logger.Info("Order filled successfully", "orderID", orderID)
-	return updatedOrders, nil
+	return order, matchOrders, ob.orderBookSnapshot(), nil
 }
 
-func (e *Exchange) CancelOrder(orderID int64) (models.Order, error) {
-	order, err := e.db.GetOrderByOrderID(orderID)
+func (s *Service) CancelOrder(orderID int) (models.Order, models.OrderBookSnapshot, error) {
+	order, err := s.db.GetOrderByOrderID(orderID)
 	if err != nil {
-		return models.Order{}, err
+		return models.Order{}, models.OrderBookSnapshot{}, err
 	}
 
-	ob, ok := e.orderBooks[order.Symbol]
-	if !ok {
-		e.logger.Error("Order book not found")
-		return models.Order{}, errors.New("Order book not found")
+	ob, exists := s.orderBooks[order.Pair]
+	if !exists {
+		s.logger.Error("failed to find order book")
+		return models.Order{}, models.OrderBookSnapshot{}, errors.New("failed to find order book")
 	}
 
-	err = ob.cancelLimitOrder(orderID, order.Price, order.IsBid)
+	if !ob.cancelLimitOrder(order) {
+		return models.Order{}, models.OrderBookSnapshot{}, errors.New("failed to cancel order")
+	}
+
+	if err = s.db.SetOrderStatusToCancel(orderID); err != nil {
+		return models.Order{}, models.OrderBookSnapshot{}, err
+	}
+
+	order, err = s.db.GetOrderByOrderID(orderID)
 	if err != nil {
-		return models.Order{}, err
+		return models.Order{}, models.OrderBookSnapshot{}, err
 	}
 
-	err = e.db.SetOrderStatusToCancel(orderID)
-	if err != nil {
-		return models.Order{}, err
-	}
-
-	order, err = e.db.GetOrderByOrderID(orderID)
-	if err != nil {
-		return models.Order{}, err
-	}
-
-	return order, nil
+	return order, ob.orderBookSnapshot(), nil
 }
 
-func (e *Exchange) GetCurrentOrders(userID int64) ([]models.Order, error) {
-	return e.db.GetNotFilledOrdersByUser(userID)
+func (s *Service) GetCurrentOrders(userID int) ([]models.Order, error) {
+	return s.db.GetNotFilledOrdersByUser(userID)
 }
 
-func (e *Exchange) GetOrders(userID int64) ([]models.Order, error) {
-	return e.db.GetOrdersByUser(userID)
+func (s *Service) GetOrders(userID int) ([]models.Order, error) {
+	return s.db.GetOrdersByUser(userID)
+}
+
+func (s *Service) GetPairs() ([]string, error) {
+	return s.db.GetPairs()
+}
+
+func (s *Service) GetPairsParams() ([]models.PairParams, error) {
+	return s.db.GetPairsParams()
+}
+
+func (s *Service) GetPairPricePrecisions(pair string) ([]int32, error) {
+	return s.db.GetPairPricePrecisions(pair)
+}
+
+func avgPrice(matches []Match) decimal.Decimal {
+	var (
+		totalValue decimal.Decimal
+		totalQty   decimal.Decimal
+	)
+
+	for _, match := range matches {
+		totalValue = totalValue.Add(match.Order.price.Mul(match.Qty))
+		totalQty = totalQty.Add(match.Qty)
+	}
+
+	return totalValue.Div(totalQty)
 }

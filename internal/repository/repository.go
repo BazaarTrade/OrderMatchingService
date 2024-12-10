@@ -4,28 +4,23 @@ import (
 	"github.com/BazaarTrade/OrderMatchingService/internal/models"
 )
 
-type Storer interface {
-	CreateOrder(order models.PlaceOrderReq) (int64, error)
-	GetOrdersByUser(userID int64) ([]models.Order, error)
-	GetOrderByOrderID(orderID int64) (models.Order, error)
-	GetNotFilledOrdersByUser(userID int64) ([]models.Order, error)
+type Repository interface {
+	CreateOrder(order models.PlaceOrderReq) (int, error)
+	GetOrdersByUser(userID int) ([]models.Order, error)
+	GetOrderByOrderID(orderID int) (models.Order, error)
+	GetNotFilledOrdersByUser(userID int) ([]models.Order, error)
 
-	SetOrderStatusToError(orderID int64) error
-	SetOrderStatusToCancel(orderID int64) error
+	SetOrderStatusToError(orderID int) error
+	SetOrderStatusToCancel(orderID int) error
 
-	AddMatches(matches AddMatchesReq) ([]models.Order, error)
-	GetMatches(orderID int64) ([]models.Match, error)
-}
+	AddMatch(orderID int, matche models.Match) error
+	GetMatches(orderID int) ([]models.Match, error)
 
-type AddMatchesReq struct {
-	OrderID         int64
-	OrderSizeFilled string
-	Matches         []Match
-}
+	CreatePair(pair string, pricePrecisions []int32, qtyPecision int32) error
+	GetPairs() ([]string, error)
+	GetPairsParams() ([]models.PairParams, error)
+	GetPairPricePrecisions(pair string) ([]int32, error)
 
-type Match struct {
-	Qty                    string
-	Price                  string
-	CounterOrderID         int64
-	CounterOrderSizeFilled string
+	UpdateOrderPrice(orderID int, price string) error
+	UpdateOrderSizeFilled(orderID int, sizeFilled string) (models.Order, error)
 }

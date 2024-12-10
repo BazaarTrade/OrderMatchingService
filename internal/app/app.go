@@ -4,24 +4,50 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/BazaarTrade/OrderMatchingService/internal/api/gRPC"
-	"github.com/BazaarTrade/OrderMatchingService/internal/repository/postgres"
+	server "github.com/BazaarTrade/OrderMatchingService/internal/api/gRPC"
+	"github.com/BazaarTrade/OrderMatchingService/internal/repository/postgresPgx"
+	"github.com/BazaarTrade/OrderMatchingService/internal/service"
 	"github.com/BazaarTrade/OrderMatchingService/internal/service/exchange.go"
+	"github.com/joho/godotenv"
 )
 
 func Run() {
-	handler := slog.NewTextHandler(os.Stdout, nil)
-	logger := slog.New(handler)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	logger.Info("Starting aplication")
+	if _, err := os.Stat(".env"); err == nil {
+		if err := godotenv.Load(".env"); err != nil {
+			logger.Error("failed to load .env file")
+		}
+	}
 
-	repo, err := postgres.NewPostgres("user=postgres password=postgres dbname=postgres sslmode=disable host=localhost port=5432", logger)
+	logger.Info("starting aplication...")
+
+	repo, err := postgresPgx.NewPostgres(logger)
 	if err != nil {
-		logger.Error("Failed to initialize database", "error", err)
 		return
 	}
 
-	service := exchange.NewExchange(repo, logger)
-	server := gRPC.NewServer(service, logger)
-	server.StartGRPCServer()
+	service := exchange.New(repo, logger)
+	server := server.New(service, logger)
+
+	if err := InitOrderBooks(server, service); err != nil {
+		return
+	}
+
+	if err := server.Run(); err != nil {
+		return
+	}
+}
+
+func InitOrderBooks(server *server.Server, service service.Service) error {
+	pairs, err := service.GetPairs()
+	if err != nil {
+		return err
+	}
+
+	for _, pair := range pairs {
+		service.AddOrderBook(pair)
+		server.InitChans(pair)
+	}
+	return nil
 }

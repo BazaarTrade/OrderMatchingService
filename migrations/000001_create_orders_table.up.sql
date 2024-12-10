@@ -1,8 +1,16 @@
+CREATE TABLE pairs (
+    pair VARCHAR PRIMARY KEY,
+    pricePrecisions INTEGER[] NOT NULL,
+    qtyPecision INTEGER NOT NULL,
+    initialPrice VARCHAR,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
     userID INTEGER NOT NULL,
     isBid BOOLEAN NOT NULL,
-    symbol VARCHAR NOT NULL,
+    pair VARCHAR NOT NULL REFERENCES pairs(pair),
     price VARCHAR NOT NULL,
     qty VARCHAR NOT NULL,
     type VARCHAR NOT NULL,
@@ -19,6 +27,11 @@ CREATE TABLE matches (
     price VARCHAR NOT NULL,
     PRIMARY KEY (orderID, orderIDCounter)
 );
+
+INSERT INTO pairs (pair, pricePrecisions, qtyPecision, initialPrice)
+VALUES
+    ('BTC_USDT', ARRAY[2, 1, 0], 6, '60000'),
+    ('BAZZ_USDT', ARRAY[3, 2, 1], 3, '0.06');
 
 CREATE OR REPLACE FUNCTION update_order_status()
 RETURNS TRIGGER AS $$
