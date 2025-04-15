@@ -1,4 +1,4 @@
-package exchange
+package service
 
 import (
 	"time"
@@ -16,7 +16,7 @@ func newLimit(price decimal.Decimal) *Limit {
 	return &Limit{
 		price:  price,
 		orders: []*Order{},
-		qty:    decimal.NewFromInt(0),
+		qty:    decimal.Zero,
 	}
 }
 
@@ -34,7 +34,10 @@ func (l *Limit) matchOrders(order *Order) []Match {
 	}()
 
 	for _, bestOrder := range l.orders {
-		var match Match
+		var match = Match{
+			IsBid: order.isBid,
+			Price: l.price,
+		}
 
 		switch {
 		case order.qty.GreaterThan(bestOrder.qty):
@@ -43,7 +46,7 @@ func (l *Limit) matchOrders(order *Order) []Match {
 			order.qty = order.qty.Sub(bestOrder.qty)
 			l.qty = l.qty.Sub(bestOrder.qty)
 			match.Qty = bestOrder.qty
-			bestOrder.qty = decimal.NewFromInt(0)
+			bestOrder.qty = decimal.Zero
 			countFilledOrders++
 
 		case order.qty.LessThan(bestOrder.qty):
@@ -52,15 +55,15 @@ func (l *Limit) matchOrders(order *Order) []Match {
 			order.sizeFilled = order.sizeFilled.Add(order.qty)
 			l.qty = l.qty.Sub(order.qty)
 			match.Qty = order.qty
-			order.qty = decimal.NewFromInt(0)
+			order.qty = decimal.Zero
 
 		case order.qty.Equal(bestOrder.qty):
 			bestOrder.sizeFilled = bestOrder.sizeFilled.Add(order.qty)
 			order.sizeFilled = order.sizeFilled.Add(order.qty)
 			l.qty = l.qty.Sub(order.qty)
 			match.Qty = order.qty
-			order.qty = decimal.NewFromInt(0)
-			bestOrder.qty = decimal.NewFromInt(0)
+			order.qty = decimal.Zero
+			bestOrder.qty = decimal.Zero
 			countFilledOrders++
 		}
 

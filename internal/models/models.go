@@ -41,26 +41,8 @@ type Limit struct {
 	Qty   string
 }
 
-type Trades struct {
-	Pair   string
-	Trades []Trade
-}
-
-type Trade struct {
-	IsBid bool
-	Price string
-	Qty   string
-	Time  time.Time
-}
-
 type Match struct {
 	OrderID int
 	Qty     string
 	Price   string
-}
-
-type PairParams struct {
-	Pair            string
-	PricePrecisions []int32
-	QtyPecision     int32
 }

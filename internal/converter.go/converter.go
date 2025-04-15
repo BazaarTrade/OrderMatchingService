@@ -3,6 +3,7 @@ package converter
 import (
 	"github.com/BazaarTrade/MatchingEngineProtoGen/pbM"
 	"github.com/BazaarTrade/OrderMatchingService/internal/models"
+	"github.com/BazaarTrade/OrderMatchingService/internal/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -33,10 +34,16 @@ func ProtoPlaceOrderReqToModelsPlaceOrderReq(pbPlaceOrderReq *pbM.PlaceOrderReq)
 	}
 }
 
-func ModelsPairsParamsToProtoPairParams(pairPrecisions models.PairParams) *pbM.PairParams {
-	return &pbM.PairParams{
-		Pair:            pairPrecisions.Pair,
-		PricePrecisions: pairPrecisions.PricePrecisions,
-		QtyPrecision:    pairPrecisions.QtyPecision,
+func ServiceMatchesToPbMTrades(matches []service.Match) *pbM.Trades {
+	var pbMTrades = &pbM.Trades{Trades: make([]*pbM.Trade, 0, len(matches))}
+	for _, match := range matches {
+		pbMTrades.Trades = append(pbMTrades.Trades, &pbM.Trade{
+			Pair:  match.Pair,
+			IsBid: match.IsBid,
+			Price: match.Price.String(),
+			Qty:   match.Qty.String(),
+			Time:  timestamppb.New(match.Time),
+		})
 	}
+	return pbMTrades
 }

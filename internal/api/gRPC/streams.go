@@ -4,11 +4,11 @@ import (
 	"errors"
 
 	"github.com/BazaarTrade/MatchingEngineProtoGen/pbM"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/BazaarTrade/OrderMatchingService/internal/converter.go"
 )
 
 func (s *Server) StreamOrderBookSnapshot(req *pbM.Pair, stream pbM.MatchingEngine_StreamOrderBookSnapshotServer) error {
-	OBSchan, exists := s.orderBookSnapshot[req.Pair]
+	OBSChan, exists := s.orderBookSnapshot[req.Pair]
 	if !exists {
 		s.logger.Error("failed to find order book snapshot chan", "pair", req.Pair)
 		return errors.New("failed to find order book snapshot chan for: " + req.Pair)
@@ -16,7 +16,7 @@ func (s *Server) StreamOrderBookSnapshot(req *pbM.Pair, stream pbM.MatchingEngin
 
 	for {
 		select {
-		case OBS, ok := <-OBSchan:
+		case OBS, ok := <-OBSChan:
 			if !ok {
 				s.logger.Info("OBS stream stopped manualy", "pair", req.Pair)
 				return nil
@@ -49,7 +49,7 @@ func (s *Server) StreamOrderBookSnapshot(req *pbM.Pair, stream pbM.MatchingEngin
 				continue
 			}
 
-			s.logger.Info("Sent OBS", "pair", req.Pair)
+			s.logger.Debug("sent OBS", "pair", req.Pair)
 
 		case <-stream.Context().Done():
 			s.logger.Info("stream stopped by client", "pair", req.Pair)
@@ -59,37 +59,26 @@ func (s *Server) StreamOrderBookSnapshot(req *pbM.Pair, stream pbM.MatchingEngin
 }
 
 func (s *Server) StreamTrades(req *pbM.Pair, stream pbM.MatchingEngine_StreamTradesServer) error {
-	tradesChan, exists := s.trades[req.Pair]
+	matchesChan, exists := s.matches[req.Pair]
 	if !exists {
-		s.logger.Error("failed to find order book snapshot", "pair", req.Pair)
-		return errors.New("failed to find order book snapshot for: " + req.Pair)
+		s.logger.Error("failed to find matches chan", "pair", req.Pair)
+		return errors.New("failed to find matches chan for: " + req.Pair)
 	}
 
 	for {
 		select {
-		case trades, ok := <-tradesChan:
+		case matches, ok := <-matchesChan:
 			if !ok {
 				s.logger.Info("trades stream stopped manualy", "pair", req.Pair)
 				return nil
 			}
 
-			var pbTrades = pbM.Trades{Pair: trades.Pair}
-
-			for _, trade := range trades.Trades {
-				pbTrades.Trades = append(pbTrades.Trades, &pbM.Trade{
-					IsBid: trade.IsBid,
-					Price: trade.Price,
-					Qty:   trade.Qty,
-					Time:  timestamppb.New(trade.Time),
-				})
-			}
-
-			if err := stream.Send(&pbTrades); err != nil {
-				s.logger.Error("failed to send trades", "Pair", trades.Pair, "error", err)
+			if err := stream.Send(converter.ServiceMatchesToPbMTrades(matches)); err != nil {
+				s.logger.Error("failed to send trade", "Pair", req.Pair, "error", err)
 				continue
 			}
 
-			s.logger.Info("Sent trades", "pair", req.Pair)
+			s.logger.Debug("sent trades", "pair", req.Pair)
 
 		case <-stream.Context().Done():
 			s.logger.Info("trades stream stopped by client", "pair", req.Pair)

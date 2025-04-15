@@ -13,19 +13,19 @@ import (
 
 type Server struct {
 	pbM.UnimplementedMatchingEngineServer
-	service           service.Service
+	service           *service.Service
 	orderBookSnapshot map[string]chan models.OrderBookSnapshot
-	trades            map[string]chan models.Trades
+	matches           map[string]chan []service.Match
 	mu                sync.RWMutex
 	logger            *slog.Logger
 }
 
-func New(service service.Service, logger *slog.Logger) *Server {
+func New(serviceT *service.Service, logger *slog.Logger) *Server {
 	return &Server{
-		service:           service,
+		service:           serviceT,
 		logger:            logger,
 		orderBookSnapshot: make(map[string]chan models.OrderBookSnapshot),
-		trades:            make(map[string]chan models.Trades),
+		matches:           make(map[string]chan []service.Match),
 	}
 }
 
@@ -52,7 +52,7 @@ func (s *Server) InitChans(pair string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.orderBookSnapshot[pair] = make(chan models.OrderBookSnapshot)
-	s.trades[pair] = make(chan models.Trades)
+	s.matches[pair] = make(chan []service.Match)
 }
 
 func (s *Server) RemoveChans(pair string) {
@@ -64,8 +64,8 @@ func (s *Server) RemoveChans(pair string) {
 		delete(s.orderBookSnapshot, pair)
 	}
 
-	if ch, exists := s.trades[pair]; exists {
+	if ch, exists := s.matches[pair]; exists {
 		close(ch)
-		delete(s.trades, pair)
+		delete(s.matches, pair)
 	}
 }

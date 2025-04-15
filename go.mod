@@ -3,7 +3,7 @@ module github.com/BazaarTrade/OrderMatchingService
 go 1.22.0
 
 require (
-	github.com/BazaarTrade/MatchingEngineProtoGen v0.0.0-20241030114547-86c01b00cf55
+	github.com/BazaarTrade/MatchingEngineProtoGen v0.0.0-20250221150307-ff60566400de
 	github.com/golang-migrate/migrate/v4 v4.18.1
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/joho/godotenv v1.5.1

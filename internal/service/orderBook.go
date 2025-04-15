@@ -1,4 +1,4 @@
-package exchange
+package service
 
 import (
 	"log/slog"
@@ -50,15 +50,17 @@ type Order struct {
 
 type Match struct {
 	Order Order
+	Pair  string
+	IsBid bool
+	Price decimal.Decimal
 	Qty   decimal.Decimal
 	Time  time.Time
 }
 
-func (ob *OrderBook) placeLimitOrder(price string, order *Order) ([]Match, decimal.Decimal, error) {
+func (ob *OrderBook) placeLimitOrder(price string, order *Order) []Match {
 	var (
-		limit      *Limit
-		matches    []Match
-		sizeFilled decimal.Decimal
+		limit   *Limit
+		matches []Match
 	)
 
 	switch {
@@ -66,12 +68,11 @@ func (ob *OrderBook) placeLimitOrder(price string, order *Order) ([]Match, decim
 		ob.askMutex.Lock()
 		if len(ob.bestAskLimits) > 0 && order.price.GreaterThanOrEqual(ob.bestAskLimits[0].price) { //if limit order can be filled or partialy filled instantly
 			matches = ob.fillOrder(order)
-			sizeFilled = order.sizeFilled.Copy()
 		}
 		ob.askMutex.Unlock()
 
 		if order.qty.IsZero() {
-			return matches, sizeFilled, nil
+			return matches
 		}
 
 		ob.bidMutex.Lock()
@@ -86,14 +87,13 @@ func (ob *OrderBook) placeLimitOrder(price string, order *Order) ([]Match, decim
 
 	case !order.isBid:
 		ob.bidMutex.Lock()
-		if len(ob.bestBidLimits) > 0 && order.price.Cmp(ob.bestBidLimits[0].price) <= 0 { //if limit order can be filled or partialy filled instantly
+		if len(ob.bestBidLimits) > 0 && order.price.LessThanOrEqual(ob.bestBidLimits[0].price) { //if limit order can be filled or partialy filled instantly
 			matches = ob.fillOrder(order)
-			sizeFilled = order.sizeFilled.Copy()
 		}
 		ob.bidMutex.Unlock()
 
 		if order.qty.IsZero() {
-			return matches, sizeFilled, nil
+			return matches
 		}
 
 		ob.askMutex.Lock()
@@ -108,10 +108,10 @@ func (ob *OrderBook) placeLimitOrder(price string, order *Order) ([]Match, decim
 	}
 	limit.orders = append(limit.orders, order)
 	limit.qty = limit.qty.Add(order.qty)
-	return matches, sizeFilled, nil
+	return matches
 }
 
-func (ob *OrderBook) placeMarketOrder(order *Order) ([]Match, error) {
+func (ob *OrderBook) placeMarketOrder(order *Order) []Match {
 	switch {
 	case order.isBid:
 		ob.askMutex.Lock()
@@ -121,7 +121,7 @@ func (ob *OrderBook) placeMarketOrder(order *Order) ([]Match, error) {
 		ob.bidMutex.Lock()
 		defer ob.bidMutex.Unlock()
 	}
-	return ob.fillOrder(order), nil
+	return ob.fillOrder(order)
 }
 
 func (ob *OrderBook) cancelLimitOrder(order models.Order) bool {

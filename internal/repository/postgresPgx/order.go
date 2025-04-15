@@ -9,7 +9,7 @@ import (
 func (p *Postgres) CreateOrder(order models.PlaceOrderReq) (int, error) {
 	var orderID int
 	err := p.db.QueryRow(context.Background(), `
-	INSERT INTO orders
+	INSERT INTO matchingEngine.orders
 	(userID, isBid, pair, price, qty, type, status)
 	VALUES
 	($1, $2, $3, $4, $5, $6, $7)
@@ -27,7 +27,7 @@ func (p *Postgres) GetOrderByOrderID(orderID int) (models.Order, error) {
 	var order models.Order
 	row := p.db.QueryRow(context.Background(), `
 	SELECT id, userID, isBid, pair, price, qty, sizeFilled, status, type, createdAt, closedAt
-	FROM orders
+	FROM matchingEngine.orders
 	WHERE id = $1
 	`, orderID)
 
@@ -51,83 +51,9 @@ func (p *Postgres) GetOrderByOrderID(orderID int) (models.Order, error) {
 	return order, nil
 }
 
-func (p *Postgres) GetOrdersByUser(userID int) ([]models.Order, error) {
-	rows, err := p.db.Query(context.Background(), `
-	SELECT id, userID, isBid, pair, price, qty, sizeFilled, status, type, createdAt, closedAt
-	FROM orders
-	WHERE userID = $1
-	`, userID)
-	if err != nil {
-		p.logger.Error("failed to select orders", "error", err)
-		return nil, err
-	}
-	defer rows.Close()
-
-	var orders []models.Order
-	for rows.Next() {
-		var order models.Order
-		err := rows.Scan(
-			&order.ID,
-			&order.UserID,
-			&order.IsBid,
-			&order.Pair,
-			&order.Price,
-			&order.Qty,
-			&order.SizeFilled,
-			&order.Status,
-			&order.Type,
-			&order.CreatedAt,
-			&order.ClosedAt,
-		)
-		if err != nil {
-			p.logger.Error("failed to scan order", "error", err)
-			return nil, err
-		}
-		orders = append(orders, order)
-	}
-	return orders, nil
-}
-
-func (p *Postgres) GetNotFilledOrdersByUser(userID int) ([]models.Order, error) {
-	rows, err := p.db.Query(context.Background(), `
-	SELECT id, userID, isBid, pair, price, qty, sizeFilled, status, type, createdAt, closedAt
-	FROM orders
-	WHERE userID = $1 AND status IN ('filling', 'filled', 'canceled')
-	`, userID)
-	if err != nil {
-		p.logger.Error("failed to select orders", "error", err)
-		return nil, err
-	}
-	defer rows.Close()
-
-	var orders []models.Order
-	for rows.Next() {
-		var order models.Order
-		err := rows.Scan(
-			&order.ID,
-			&order.UserID,
-			&order.IsBid,
-			&order.Pair,
-			&order.Price,
-			&order.Qty,
-			&order.SizeFilled,
-			&order.Status,
-			&order.Type,
-			&order.CreatedAt,
-			&order.ClosedAt,
-		)
-		if err != nil {
-			p.logger.Error("failed to scan order", "error", err)
-			return nil, err
-		}
-		orders = append(orders, order)
-	}
-	return orders, nil
-}
-
 func (p *Postgres) SetOrderStatusToCancel(orderID int) error {
 	_, err := p.db.Exec(context.Background(), `
-	UPDATE orders SET status = 'canceled', closedAt = CURRENT_TIMESTAMP 
+	UPDATE matchingEngine.orders SET status = 'canceled', closedAt = CURRENT_TIMESTAMP 
 	WHERE id = $1
 	`, orderID)
 	if err != nil {
@@ -139,7 +65,7 @@ func (p *Postgres) SetOrderStatusToCancel(orderID int) error {
 
 func (p *Postgres) SetOrderStatusToError(orderID int) error {
 	_, err := p.db.Exec(context.Background(), `
-	UPDATE orders SET status = 'error', closedAt = CURRENT_TIMESTAMP 
+	UPDATE matchingEngine.orders SET status = 'error', closedAt = CURRENT_TIMESTAMP 
 	WHERE id = $1
 	`, orderID)
 	if err != nil {
@@ -151,7 +77,7 @@ func (p *Postgres) SetOrderStatusToError(orderID int) error {
 
 func (p *Postgres) UpdateOrderPrice(orderID int, price string) error {
 	_, err := p.db.Exec(context.Background(), `
-	UPDATE orders SET price = $1
+	UPDATE matchingEngine.orders SET price = $1
 	WHERE id = $2
 	`, price, orderID)
 	if err != nil {
@@ -164,7 +90,7 @@ func (p *Postgres) UpdateOrderPrice(orderID int, price string) error {
 func (p *Postgres) UpdateOrderSizeFilled(orderID int, sizeFilled string) (models.Order, error) {
 	var order models.Order
 	err := p.db.QueryRow(context.Background(), `
-		UPDATE orders
+		UPDATE matchingEngine.orders
 		SET sizeFilled = $1
 		WHERE id = $2
 		RETURNING id, userID, isBid, pair, price, qty, sizeFilled, status, type, createdAt, closedAt

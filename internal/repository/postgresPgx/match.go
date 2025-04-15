@@ -8,7 +8,7 @@ import (
 
 func (p *Postgres) AddMatch(orderID int, match models.Match) error {
 	_, err := p.db.Exec(context.Background(), `
-			INSERT INTO matches (orderID, orderIDCounter, qty, price)
+			INSERT INTO matchingEngine.matches (orderID, orderIDCounter, qty, price)
 			VALUES ($1, $2, $3, $4)
 		`, orderID, match.OrderID, match.Qty, match.Price)
 	if err != nil {
@@ -20,7 +20,7 @@ func (p *Postgres) AddMatch(orderID int, match models.Match) error {
 
 func (p *Postgres) GetMatches(orderID int) ([]models.Match, error) {
 	rows, err := p.db.Query(context.Background(), `
-	SELECT FROM matches(qty, price) WHERE orderID = $1
+	SELECT FROM matchingEngine.matches(qty, price) WHERE orderID = $1
 	`, orderID)
 	if err != nil {
 		p.logger.Error("failed to select matches", "error", err)
