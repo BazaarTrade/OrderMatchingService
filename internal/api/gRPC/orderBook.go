@@ -15,17 +15,20 @@ func (s *Server) CreateOrderBook(ctx context.Context, req *pbM.Pair) (*emptypb.E
 		return nil, status.Errorf(codes.Internal, "failed to create orderbook: %v", err)
 	}
 
-	s.InitChans(req.Pair)
+	s.NewStreamHub(req.Pair)
 
 	return &emptypb.Empty{}, nil
 }
 
 func (s *Server) DeleteOrderBook(ctx context.Context, req *pbM.Pair) (*emptypb.Empty, error) {
-	s.RemoveChans(req.Pair)
+	if err := s.DeleteStreamHubByPair(req.Pair); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to delete orderbook: %v", err)
+	}
 
 	err := s.service.DeleteOrderBook(req.Pair)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete orderbook: %v", err)
 	}
+
 	return &emptypb.Empty{}, nil
 }

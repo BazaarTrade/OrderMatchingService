@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/BazaarTrade/MatchingEngineProtoGen/pbM"
-	"github.com/BazaarTrade/OrderMatchingService/internal/converter.go"
+	"github.com/BazaarTrade/OrderMatchingService/internal/converter"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -15,10 +15,7 @@ func (s *Server) PlaceOrder(ctx context.Context, req *pbM.PlaceOrderReq) (*pbM.P
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	select {
-	case s.orderBookSnapshot[OBS.Pair] <- OBS:
-	default:
-	}
+	go s.sendOBS(OBS)
 
 	var (
 		placeOrderRes = pbM.PlaceOrderRes{
@@ -32,10 +29,7 @@ func (s *Server) PlaceOrder(ctx context.Context, req *pbM.PlaceOrderReq) (*pbM.P
 	}
 
 	if len(matches) > 0 {
-		select {
-		case s.matches[req.Pair] <- matches:
-		default:
-		}
+		go s.sendMatches(matches)
 	}
 
 	return &placeOrderRes, nil
@@ -50,7 +44,7 @@ func (s *Server) CancelOrder(ctx context.Context, req *pbM.OrderID) (*pbM.Order,
 		return nil, status.Errorf(codes.Internal, "failed to cancel order: %v", err)
 	}
 
-	s.orderBookSnapshot[OBS.Pair] <- OBS
+	go s.sendOBS(OBS)
 
 	return converter.ModelsOrderToProtoOrder(order), nil
 }

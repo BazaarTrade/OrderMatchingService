@@ -1,24 +1,25 @@
 package server
 
 import (
-	"errors"
-
 	"github.com/BazaarTrade/MatchingEngineProtoGen/pbM"
-	"github.com/BazaarTrade/OrderMatchingService/internal/converter.go"
+	"github.com/BazaarTrade/OrderMatchingService/internal/converter"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (s *Server) StreamOrderBookSnapshot(req *pbM.Pair, stream pbM.MatchingEngine_StreamOrderBookSnapshotServer) error {
-	OBSChan, exists := s.orderBookSnapshot[req.Pair]
-	if !exists {
-		s.logger.Error("failed to find order book snapshot chan", "pair", req.Pair)
-		return errors.New("failed to find order book snapshot chan for: " + req.Pair)
+	OBSChan, err := s.GetOBSChan(req.Pair)
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
 	}
+
+	s.logger.Info("client connected to OBS stream", "pair", req.Pair)
 
 	for {
 		select {
 		case OBS, ok := <-OBSChan:
 			if !ok {
-				s.logger.Info("OBS stream stopped manualy", "pair", req.Pair)
+				s.logger.Info("OBS stream stopped normally", "pair", req.Pair)
 				return nil
 			}
 
@@ -52,24 +53,25 @@ func (s *Server) StreamOrderBookSnapshot(req *pbM.Pair, stream pbM.MatchingEngin
 			s.logger.Debug("sent OBS", "pair", req.Pair)
 
 		case <-stream.Context().Done():
-			s.logger.Info("stream stopped by client", "pair", req.Pair)
+			s.logger.Info("client disconnected from OBS stream", "pair", req.Pair)
 			return nil
 		}
 	}
 }
 
 func (s *Server) StreamTrades(req *pbM.Pair, stream pbM.MatchingEngine_StreamTradesServer) error {
-	matchesChan, exists := s.matches[req.Pair]
-	if !exists {
-		s.logger.Error("failed to find matches chan", "pair", req.Pair)
-		return errors.New("failed to find matches chan for: " + req.Pair)
+	matchesChan, err := s.GetMatchesChan(req.Pair)
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
 	}
+
+	s.logger.Info("client connected to trades stream", "pair", req.Pair)
 
 	for {
 		select {
 		case matches, ok := <-matchesChan:
 			if !ok {
-				s.logger.Info("trades stream stopped manualy", "pair", req.Pair)
+				s.logger.Info("trades stream stopped normally", "pair", req.Pair)
 				return nil
 			}
 
@@ -81,7 +83,7 @@ func (s *Server) StreamTrades(req *pbM.Pair, stream pbM.MatchingEngine_StreamTra
 			s.logger.Debug("sent trades", "pair", req.Pair)
 
 		case <-stream.Context().Done():
-			s.logger.Info("trades stream stopped by client", "pair", req.Pair)
+			s.logger.Info("client disconnected from trades stream", "pair", req.Pair)
 			return nil
 		}
 	}

@@ -11,7 +11,6 @@ RUN go build -o matchingEngine .
 FROM gcr.io/distroless/base
 
 COPY --from=builder /app/cmd/matchingEngine /matchingEngine
-COPY --from=builder /app/migrations /migrations
 
 EXPOSE 50051
 
