@@ -1,0 +1,1 @@
+OrderMatchingService is a high-performance backend service written in Go for processing and matching buy/sell orders on a cryptocurrency exchange. It serves as a core component of a trading platform, responsible for maintaining order books, matching orders based on price/time priority, and executing trades efficiently.
